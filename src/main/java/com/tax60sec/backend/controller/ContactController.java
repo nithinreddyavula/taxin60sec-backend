@@ -41,4 +41,8 @@ public class ContactController {
     public void deleteContact(@PathVariable Long id) {
         repository.deleteById(id);
     }
+    @GetMapping("/health")
+public String health() {
+    return "OK";
+}
 }
