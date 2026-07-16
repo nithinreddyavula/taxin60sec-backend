@@ -1,9 +1,7 @@
 package com.taxin60sec.backend.payment;
-
-import java.math.BigDecimal;
-
+import java.math.BigDecimal; import java.time.Instant; import java.util.Map;
 public interface PaymentService {
-    String createPaymentOrder(BigDecimal amount, String currency, String referenceId);
-
-    boolean verifyPayment(String externalPaymentId, String signature);
+    PaymentOrder createOrder(PaymentOrderRequest request); PaymentEvent verifyWebhook(PaymentWebhook webhook); Refund refund(RefundRequest request); Invoice invoice(String paymentId);
+    record PaymentOrderRequest(BigDecimal amount,String currency,String referenceId,String customerId,Map<String,String> metadata){} record PaymentOrder(String id,String provider,String referenceId,BigDecimal amount,String currency,String status,Instant createdAt){} record PaymentWebhook(String provider,String payload,String signature,Map<String,String> headers){} record PaymentEvent(String provider,String eventId,String type,String paymentId,Instant occurredAt,Map<String,String> attributes){} record RefundRequest(String paymentId,BigDecimal amount,String reason){} record Refund(String id,String paymentId,BigDecimal amount,String status,Instant createdAt){} record Invoice(String id,String paymentId,String url,Instant issuedAt){}
+    interface PaymentProvider { String name(); PaymentOrder createOrder(PaymentOrderRequest request); PaymentEvent verifyWebhook(PaymentWebhook webhook); Refund refund(RefundRequest request); Invoice invoice(String paymentId); Health health(); } record Health(boolean available,String detail){} class PaymentException extends RuntimeException { public PaymentException(String message){super(message);} public PaymentException(String message,Throwable cause){super(message,cause);} }
 }
