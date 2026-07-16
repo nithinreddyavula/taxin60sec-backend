@@ -1,4 +1,4 @@
-package com.tax60sec.backend.config;
+package com.taxin60sec.backend.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -7,20 +7,22 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
 public class CorsConfig {
+    private final ApplicationProperties properties;
+
+    public CorsConfig(ApplicationProperties properties) {
+        this.properties = properties;
+    }
 
     @Bean
     public WebMvcConfigurer corsConfigurer() {
         return new WebMvcConfigurer() {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
+                ApplicationProperties.Cors cors = properties.cors();
                 registry.addMapping("/**")
-                        .allowedOrigins(
-                                "https://tax60sec.com",
-                                "https://www.tax60sec.com",
-                                "http://localhost:3000"
-                        )
-                        .allowedMethods("*")
-                        .allowedHeaders("*");
+                        .allowedOrigins(cors.allowedOrigins().toArray(String[]::new))
+                        .allowedMethods(cors.allowedMethods().toArray(String[]::new))
+                        .allowedHeaders(cors.allowedHeaders().toArray(String[]::new));
             }
         };
     }
