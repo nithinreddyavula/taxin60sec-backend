@@ -2,7 +2,12 @@ package com.taxin60sec.backend.common;
 
 public enum ApiErrorCode {
     VALIDATION_ERROR,
+    BAD_REQUEST,
     UNAUTHORIZED,
+    INVALID_TOKEN,
+    TOKEN_EXPIRED,
+    INVALID_CREDENTIALS,
+    USER_DISABLED,
     FORBIDDEN,
     NOT_FOUND,
     CONFLICT,
