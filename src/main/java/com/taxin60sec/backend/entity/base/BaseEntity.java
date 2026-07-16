@@ -28,6 +28,11 @@ public abstract class BaseEntity {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
+    private Instant deletedAt;
+
     @Version
     private Long version;
 
@@ -41,5 +46,15 @@ public abstract class BaseEntity {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = DateTimeUtils.nowUtc();
+    }
+
+    public void markDeleted() {
+        deleted = true;
+        deletedAt = DateTimeUtils.nowUtc();
+    }
+
+    public void restore() {
+        deleted = false;
+        deletedAt = null;
     }
 }

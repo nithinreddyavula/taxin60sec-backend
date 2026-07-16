@@ -1,0 +1,19 @@
+package com.taxin60sec.backend.entity.enums;
+
+public enum WorkflowStage {
+    CREATED,
+    PAYMENT_PENDING,
+    PAYMENT_COMPLETED,
+    DOCUMENTS_PENDING,
+    DOCUMENTS_UPLOADED,
+    DOCUMENTS_VERIFIED,
+    CA_ASSIGNED,
+    UNDER_REVIEW,
+    CLIENT_ACTION_REQUIRED,
+    PROCESSING,
+    READY_TO_FILE,
+    FILED,
+    COMPLETED,
+    ARCHIVED,
+    CANCELLED
+}
