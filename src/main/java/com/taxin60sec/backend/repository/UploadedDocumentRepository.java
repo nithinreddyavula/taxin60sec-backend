@@ -9,4 +9,5 @@ public interface UploadedDocumentRepository extends JpaRepository<UploadedDocume
     List<UploadedDocument> findByTaxCaseIdAndDeletedFalseOrderByCreatedAtDesc(Long caseId);
     Optional<UploadedDocument> findById(Long id);
     Optional<UploadedDocument> findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(Long caseId, String documentType);
+    Optional<UploadedDocument> findFirstBySha256HashAndDeletedFalse(String sha256Hash);
 }

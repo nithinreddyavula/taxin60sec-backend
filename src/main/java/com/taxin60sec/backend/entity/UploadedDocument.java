@@ -47,7 +47,36 @@ public class UploadedDocument extends BaseEntity {
     private Long fileSize;
 
     @Column(length = 64)
-private String sha256Hash;
+    private String sha256Hash;
+
+    @Column(length = 40)
+    private String classifiedDocumentType;
+
+    private Double classificationConfidence;
+    private Double ocrConfidence;
+    private Integer pageCount;
+    private Integer imageQualityScore;
+
+    @Column(length = 80)
+    private String ocrProvider;
+
+    @Column(length = 12000)
+    private String ocrData;
+
+    @Column(length = 4000)
+    private String validationIssues;
+
+    @Column(nullable = false)
+    private boolean duplicateFile = false;
+
+    @Column(nullable = false)
+    private boolean corrupted = false;
+
+    @Column(nullable = false)
+    private boolean encrypted = false;
+
+    @Column(nullable = false)
+    private boolean ownershipValidated = false;
 
     @Column(nullable = false) 
     private int versionNumber = 1;

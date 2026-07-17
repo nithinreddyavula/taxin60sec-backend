@@ -11,6 +11,7 @@ import com.taxin60sec.backend.repository.UploadedDocumentRepository;
 import com.taxin60sec.backend.storage.StoredFile;
 
 import com.taxin60sec.backend.ai.AiDocumentValidator;
+import com.taxin60sec.backend.audit.AuditContracts;
 import com.taxin60sec.backend.storage.SecureLocalStorageService;
 import com.taxin60sec.backend.document.DocumentAnalysisResult;
 import jakarta.persistence.EntityNotFoundException;
@@ -30,6 +31,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final RequiredDocumentRepository requiredDocumentRepository;
     private final AiDocumentValidator aiDocumentValidator;
     private final SecureLocalStorageService secureLocalStorageService;
+    private final AuditContracts.AuditService audit;
 
     @Override
     public void upload(DocumentUploadRequest request) {
@@ -41,6 +43,10 @@ public class DocumentServiceImpl implements DocumentService {
         RequiredDocument requiredDocument = requiredDocumentRepository.findById(request.getRequiredDocumentId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Required document not found : " + request.getRequiredDocumentId()));
+
+        if (requiredDocument.getTaxCase() != null && !requiredDocument.getTaxCase().getId().equals(taxCase.getId())) {
+            throw new IllegalArgumentException("Required document does not belong to the supplied case.");
+        }
 
         UploadedDocument uploadedDocument = new UploadedDocument();
 
@@ -74,9 +80,10 @@ public class DocumentServiceImpl implements DocumentService {
                         uploadedDocument.setVersionNumber(
                                 previous.getVersionNumber() + 1));
 
-        uploadedDocumentRepository.save(uploadedDocument);
-        DocumentAnalysisResult analysis =
+        uploadedDocumentRepository.saveAndFlush(uploadedDocument);
         aiDocumentValidator.validate(uploadedDocument);
+        uploadedDocumentRepository.save(uploadedDocument);
+        audit.record(new AuditContracts.AuditEvent("DOCUMENT_UPLOADED", "DOCUMENT", String.valueOf(uploadedDocument.getId()), null, java.time.Instant.now(), java.util.Map.of("caseId", String.valueOf(taxCase.getId()), "type", requiredDocument.getDocumentType())));
 
         validate(taxCase.getId());
     }
@@ -110,11 +117,11 @@ public class DocumentServiceImpl implements DocumentService {
                 continue;
             }
 
-            boolean uploaded =
-                    uploadedDocumentRepository
+            boolean uploaded = uploadedDocumentRepository
                             .findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(
                                     caseId,
                                     requiredDocument.getDocumentType())
+                            .filter(document -> document.getVerificationStatus() == DocumentVerificationStatus.VERIFIED)
                             .isPresent();
 
             if (!uploaded) {

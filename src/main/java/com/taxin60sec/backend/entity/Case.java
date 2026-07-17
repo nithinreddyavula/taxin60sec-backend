@@ -24,6 +24,7 @@ import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -102,6 +103,17 @@ public class Case extends BaseEntity {
 
     @Column(nullable = false)
     private boolean intakeCompleted = false;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal estimatedMinimumPrice;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal estimatedMaximumPrice;
+
+    private Integer estimatedDurationDays;
+
+    @Column(length = 1200)
+    private String aiRiskFlags;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id")

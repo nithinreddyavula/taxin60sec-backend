@@ -40,7 +40,9 @@ public class SecureLocalStorageService {
 
             Path destination = directory.resolve(storedName);
 
-            Files.copy(file.getInputStream(), destination);
+            try (InputStream input = file.getInputStream()) {
+                Files.copy(input, destination);
+            }
 
             String sha256;
 
