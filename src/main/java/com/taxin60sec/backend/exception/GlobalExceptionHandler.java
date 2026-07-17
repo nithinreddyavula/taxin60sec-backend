@@ -14,6 +14,8 @@ import org.springframework.security.authentication.AuthenticationCredentialsNotF
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.taxin60sec.backend.storage.StorageException;
+import com.taxin60sec.backend.security.ForbiddenException;
 
 import java.util.List;
 
@@ -79,4 +81,24 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Internal server error", List.of(error), request.getRequestURI()));
     }
+
+    @ExceptionHandler(StorageException.class)
+public ResponseEntity<ApiResponse<Void>> handleStorageException(
+        StorageException exception,
+        HttpServletRequest request) {
+
+    ErrorDetail error = new ErrorDetail(
+            ApiErrorCode.STORAGE_ERROR.name(),
+            null,
+            exception.getMessage()
+    );
+
+    return ResponseEntity
+            .badRequest()
+            .body(ApiResponse.error(
+                    "Storage operation failed",
+                    List.of(error),
+                    request.getRequestURI()
+            ));
+}
 }

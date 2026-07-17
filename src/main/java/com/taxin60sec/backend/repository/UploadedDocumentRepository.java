@@ -7,5 +7,6 @@ import java.util.Optional;
 
 public interface UploadedDocumentRepository extends JpaRepository<UploadedDocument, Long> {
     List<UploadedDocument> findByTaxCaseIdAndDeletedFalseOrderByCreatedAtDesc(Long caseId);
+    Optional<UploadedDocument> findById(Long id);
     Optional<UploadedDocument> findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(Long caseId, String documentType);
 }

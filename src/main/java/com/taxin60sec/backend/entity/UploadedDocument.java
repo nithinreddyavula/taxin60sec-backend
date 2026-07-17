@@ -46,7 +46,10 @@ public class UploadedDocument extends BaseEntity {
 
     private Long fileSize;
 
-    @Column(nullable = false)
+    @Column(length = 64)
+private String sha256Hash;
+
+    @Column(nullable = false) 
     private int versionNumber = 1;
 
     private Instant expiresAt;

@@ -4,6 +4,7 @@ import com.taxin60sec.backend.entity.base.BaseEntity;
 import com.taxin60sec.backend.entity.enums.CasePriority;
 import com.taxin60sec.backend.entity.enums.CaseStatus;
 import com.taxin60sec.backend.entity.enums.WorkflowStage;
+import com.taxin60sec.backend.entity.enums.ConversationState;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -64,6 +65,10 @@ public class Case extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)
     private CaseStatus status = CaseStatus.DRAFT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ConversationState conversationState = ConversationState.GREETING;
 
     @Size(max = 1500)
     @Column(length = 1500)

@@ -8,5 +8,6 @@ import java.util.Optional;
 
 public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificationExecutor<Case> {
     Optional<Case> findByCaseNumber(String caseNumber);
+    Optional<Case> findFirstByClientIdAndArchivedFalseAndDeletedFalseOrderByUpdatedAtDesc(Long clientId);
     Optional<Case> findFirstByClientIdAndServiceOfferingIdAndArchivedFalseAndDeletedFalseOrderByUpdatedAtDesc(Long clientId, Long serviceOfferingId);
 }

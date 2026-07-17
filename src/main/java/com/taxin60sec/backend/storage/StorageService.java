@@ -1,7 +1,11 @@
 package com.taxin60sec.backend.storage;
 import java.time.Instant; import java.util.Map;
+import org.springframework.web.multipart.MultipartFile;
 public interface StorageService {
-    StorageMetadata createUploadMetadata(String key, String contentType, long contentLength, boolean versioned);
+    StorageMetadata upload(
+        MultipartFile file,
+        boolean versioned
+    );
     PresignedUrl createDownloadMetadata(String key, String version);
     StorageMetadata metadata(String key, String version);
     void softDelete(String key, String version);
