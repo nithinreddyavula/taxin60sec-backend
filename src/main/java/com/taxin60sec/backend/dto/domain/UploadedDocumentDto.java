@@ -11,6 +11,8 @@ public record UploadedDocumentDto(
         String storageKey,
         String mimeType,
         Long fileSize,
+        int versionNumber,
+        Instant expiresAt,
         DocumentVerificationStatus verificationStatus,
         Instant verifiedAt,
         Long verifiedByUserId,

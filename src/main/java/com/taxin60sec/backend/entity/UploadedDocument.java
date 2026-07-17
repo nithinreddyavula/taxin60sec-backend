@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -20,7 +21,10 @@ import java.time.Instant;
 @Entity
 @Getter
 @Setter
-@Table(name = "uploaded_documents")
+@Table(name = "uploaded_documents", indexes = {
+        @Index(name = "idx_uploaded_document_case_type_version", columnList = "case_id,document_type,version_number"),
+        @Index(name = "idx_uploaded_document_expiry", columnList = "expires_at")
+})
 public class UploadedDocument extends BaseEntity {
     @NotBlank
     @Size(max = 180)
@@ -41,6 +45,11 @@ public class UploadedDocument extends BaseEntity {
     private String mimeType;
 
     private Long fileSize;
+
+    @Column(nullable = false)
+    private int versionNumber = 1;
+
+    private Instant expiresAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 40)

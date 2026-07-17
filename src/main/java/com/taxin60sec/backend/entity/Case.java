@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Index;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -28,7 +29,12 @@ import java.util.Set;
 @Entity
 @Getter
 @Setter
-@Table(name = "cases")
+@Table(name = "cases", indexes = {
+        @Index(name = "idx_cases_client_created", columnList = "client_id,created_at"),
+        @Index(name = "idx_cases_ca_stage", columnList = "assigned_ca_id,workflow_stage"),
+        @Index(name = "idx_cases_status_priority_due", columnList = "status,priority,expected_completion_date"),
+        @Index(name = "idx_cases_business", columnList = "business_profile_id")
+})
 public class Case extends BaseEntity {
     @NotBlank
     @Size(max = 80)
@@ -85,6 +91,11 @@ public class Case extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id")
     private User client;
+
+    /** Optional during migration; existing cases continue to use client until associated with a business. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "business_profile_id")
+    private BusinessProfile businessProfile;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "assigned_ca_id")

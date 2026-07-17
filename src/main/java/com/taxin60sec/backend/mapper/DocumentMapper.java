@@ -35,6 +35,8 @@ public class DocumentMapper {
                 document.getStorageKey(),
                 document.getMimeType(),
                 document.getFileSize(),
+                document.getVersionNumber(),
+                document.getExpiresAt(),
                 document.getVerificationStatus(),
                 document.getVerifiedAt(),
                 idOf(document.getVerifiedBy()),

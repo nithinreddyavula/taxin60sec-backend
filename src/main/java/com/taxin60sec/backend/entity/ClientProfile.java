@@ -6,10 +6,14 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -35,4 +39,7 @@ public class ClientProfile extends BaseEntity {
     @Size(max = 1000)
     @Column(length = 1000)
     private String address;
+
+    @OneToMany(mappedBy = "clientProfile", fetch = FetchType.LAZY)
+    private Set<BusinessProfile> businessProfiles = new HashSet<>();
 }
