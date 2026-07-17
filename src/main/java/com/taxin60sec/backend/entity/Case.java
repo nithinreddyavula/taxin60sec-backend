@@ -88,6 +88,16 @@ public class Case extends BaseEntity {
     @Column(nullable = false)
     private boolean documentVerificationCompleted = false;
 
+    /** Case remains the source of truth for the WhatsApp-led intake. */
+    @Column(length = 12000)
+    private String intakeAnswers;
+
+    @Column(length = 4000)
+    private String intakeSummary;
+
+    @Column(nullable = false)
+    private boolean intakeCompleted = false;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "client_id")
     private User client;

@@ -21,6 +21,7 @@ public record ServiceOfferingDto(
         String color,
         boolean requiresPaymentFirst,
         boolean requiresDocumentVerification,
+        java.util.List<String> intakeQuestions,
         Long createdByUserId,
         Long updatedByUserId
 ) {

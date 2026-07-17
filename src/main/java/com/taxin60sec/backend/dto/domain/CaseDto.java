@@ -27,6 +27,8 @@ public record CaseDto(
         boolean archived,
         boolean paymentRequired,
         boolean documentVerificationCompleted,
+        boolean intakeCompleted,
+        String intakeSummary,
         Instant createdAt,
         Instant updatedAt
 ) {

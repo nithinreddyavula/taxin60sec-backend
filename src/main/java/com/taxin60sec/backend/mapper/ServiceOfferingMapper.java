@@ -24,6 +24,7 @@ public class ServiceOfferingMapper {
                 serviceOffering.getColor(),
                 serviceOffering.isRequiresPaymentFirst(),
                 serviceOffering.isRequiresDocumentVerification(),
+                serviceOffering.getIntakeQuestions() == null || serviceOffering.getIntakeQuestions().isBlank() ? java.util.List.of() : java.util.Arrays.stream(serviceOffering.getIntakeQuestions().split("\\r?\\n")).filter(q -> !q.isBlank()).toList(),
                 serviceOffering.getCreatedBy() == null ? null : serviceOffering.getCreatedBy().getId(),
                 serviceOffering.getUpdatedBy() == null ? null : serviceOffering.getUpdatedBy().getId()
         );

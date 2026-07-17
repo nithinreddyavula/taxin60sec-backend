@@ -11,7 +11,8 @@ public final class CatalogRequests {
                           @Size(max=1200) String description, @NotNull ServiceCategory category, @Min(0) Integer estimatedCompletionDays,
                           @DecimalMin("0.00") BigDecimal basePrice, @DecimalMin("0.00") BigDecimal minimumPrice,
                           @DecimalMin("0.00") BigDecimal maximumPrice, @Min(0) Integer displayOrder, String icon, String color,
-                          Boolean requiresPaymentFirst, Boolean requiresDocumentVerification) { }
+                          Boolean requiresPaymentFirst, Boolean requiresDocumentVerification,
+                          List<@NotBlank @Size(max=500) String> intakeQuestions) { }
     public record RequiredDocument(@NotBlank @Size(max=160) String name, @NotBlank @Size(max=120) String documentType,
                                    @Size(max=600) String description, Boolean mandatory, String acceptedFileTypes,
                                    @Min(1) Long maximumFileSize, String sampleDocumentUrl, @Min(0) Integer displayOrder) { }

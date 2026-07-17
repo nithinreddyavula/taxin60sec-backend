@@ -29,6 +29,8 @@ public class CaseMapper {
                 taxCase.isArchived(),
                 taxCase.isPaymentRequired(),
                 taxCase.isDocumentVerificationCompleted(),
+                taxCase.isIntakeCompleted(),
+                taxCase.getIntakeSummary(),
                 taxCase.getCreatedAt(),
                 taxCase.getUpdatedAt()
         );

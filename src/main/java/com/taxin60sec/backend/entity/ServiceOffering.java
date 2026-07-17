@@ -86,6 +86,10 @@ public class ServiceOffering extends BaseEntity {
     @Column(nullable = false)
     private boolean requiresDocumentVerification = true;
 
+    /** One question per line, maintained as part of the service configuration. */
+    @Column(length = 6000)
+    private String intakeQuestions;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private User createdBy;
