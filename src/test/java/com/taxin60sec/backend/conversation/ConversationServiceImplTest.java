@@ -10,23 +10,34 @@ import com.taxin60sec.backend.repository.CaseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.taxin60sec.backend.document.RequiredDocumentGeneratorService;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class ConversationServiceImplTest {
 
     private CaseRepository caseRepository;
     private ObjectMapper objectMapper;
+    @Mock
+private RequiredDocumentGeneratorService requiredDocumentGeneratorService;
     private ConversationServiceImpl conversationService;
 
     @BeforeEach
     void setUp() {
         caseRepository = mock(CaseRepository.class);
         objectMapper = new ObjectMapper();
-        conversationService = new ConversationServiceImpl(caseRepository, objectMapper);
+        conversationService = new ConversationServiceImpl(
+        caseRepository,
+        objectMapper,
+        requiredDocumentGeneratorService
+);
     }
 
     @Test

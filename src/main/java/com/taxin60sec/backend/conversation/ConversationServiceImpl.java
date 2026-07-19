@@ -20,6 +20,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     private final CaseRepository caseRepository;
     private final ObjectMapper objectMapper;
+    
     private final RequiredDocumentGeneratorService requiredDocumentGeneratorService;
 
     public ConversationServiceImpl(
