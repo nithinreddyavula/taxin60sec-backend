@@ -9,6 +9,7 @@ import com.taxin60sec.backend.entity.enums.WorkflowStage;
 import com.taxin60sec.backend.repository.CaseRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.taxin60sec.backend.document.RequiredDocumentGeneratorService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -19,11 +20,17 @@ public class ConversationServiceImpl implements ConversationService {
 
     private final CaseRepository caseRepository;
     private final ObjectMapper objectMapper;
+    private final RequiredDocumentGeneratorService requiredDocumentGeneratorService;
 
-    public ConversationServiceImpl(CaseRepository caseRepository, ObjectMapper objectMapper) {
-        this.caseRepository = caseRepository;
-        this.objectMapper = objectMapper;
-    }
+    public ConversationServiceImpl(
+        CaseRepository caseRepository,
+        ObjectMapper objectMapper,
+        RequiredDocumentGeneratorService requiredDocumentGeneratorService) {
+
+    this.caseRepository = caseRepository;
+    this.objectMapper = objectMapper;
+    this.requiredDocumentGeneratorService = requiredDocumentGeneratorService;
+}
 
     @Override
     public ConversationSession startConversation(Long caseId) {
@@ -148,6 +155,7 @@ public class ConversationServiceImpl implements ConversationService {
             caseEntity.setWorkflowStage(WorkflowStage.DOCUMENTS_PENDING);
             caseEntity.setStatus(CaseStatus.DOCUMENT_COLLECTION);
             caseEntity.setIntakeSummary(generateSummaryFromAnswers(answersList));
+            requiredDocumentGeneratorService.generateForCase(caseId);
         }
 
         caseRepository.save(caseEntity);
