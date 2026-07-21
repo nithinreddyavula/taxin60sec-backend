@@ -35,46 +35,83 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        return http
-                .csrf(AbstractHttpConfigurer::disable)
-                .cors(Customizer.withDefaults())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authenticationProvider(authenticationProvider())
-                .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
-                .authorizeHttpRequests(auth -> auth
-                        .authorizeHttpRequests(auth -> auth
-        .requestMatchers("/", "/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    return http
+            .csrf(AbstractHttpConfigurer::disable)
+            .cors(Customizer.withDefaults())
+            .sessionManagement(session ->
+                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authenticationProvider(authenticationProvider())
+            .exceptionHandling(exception ->
+                    exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
+            .authorizeHttpRequests(auth -> auth
 
-        .requestMatchers(HttpMethod.POST,
-                "/api/v1/auth/register",
-                "/api/v1/auth/login",
-                "/api/v1/auth/refresh"
-        ).permitAll()
+                    // Public
+                    .requestMatchers(
+                            "/",
+                            "/actuator/health",
+                            "/v3/api-docs/**",
+                            "/swagger-ui/**",
+                            "/swagger-ui.html"
+                    ).permitAll()
 
-        .requestMatchers("/api/contact/**", "/api/v1/contacts/**").permitAll()
+                    // Auth
+                    .requestMatchers(
+                            HttpMethod.POST,
+                            "/api/v1/auth/register",
+                            "/api/v1/auth/login",
+                            "/api/v1/auth/refresh"
+                    ).permitAll()
 
-        .requestMatchers(HttpMethod.GET, "/api/webhooks/whatsapp").permitAll()
-        .requestMatchers(HttpMethod.POST, "/api/webhooks/whatsapp").permitAll()
+                    // Contact
+                    .requestMatchers(
+                            "/api/contact/**",
+                            "/api/v1/contacts/**"
+                    ).permitAll()
 
-        // ===== PUBLIC WEBSITE =====
-        .requestMatchers(HttpMethod.GET, "/api/v1/services/**").permitAll()
-        .requestMatchers(HttpMethod.POST, "/api/v1/intake/cases").permitAll()
-        .requestMatchers(HttpMethod.POST, "/api/v1/intake/cases/*/answers").permitAll()
+                    // WhatsApp webhook
+                    .requestMatchers(
+                            HttpMethod.GET,
+                            "/api/webhooks/whatsapp"
+                    ).permitAll()
 
-        // ===== ADMIN =====
-        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                    .requestMatchers(
+                            HttpMethod.POST,
+                            "/api/webhooks/whatsapp"
+                    ).permitAll()
 
-        // ===== EVERYTHING ELSE =====
-        .requestMatchers("/api/**").authenticated()
+                    // ===== PUBLIC WEBSITE =====
+                    .requestMatchers(
+                            HttpMethod.GET,
+                            "/api/v1/services/**"
+                    ).permitAll()
 
-        .anyRequest().permitAll()
-)
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .formLogin(AbstractHttpConfigurer::disable)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
-    }
+                    .requestMatchers(
+                            HttpMethod.POST,
+                            "/api/v1/intake/cases"
+                    ).permitAll()
+
+                    .requestMatchers(
+                            HttpMethod.POST,
+                            "/api/v1/intake/cases/*/answers"
+                    ).permitAll()
+
+                    // Admin
+                    .requestMatchers("/api/v1/admin/**")
+                    .hasRole("ADMIN")
+
+                    // Everything else requires login
+                    .requestMatchers("/api/**")
+                    .authenticated()
+
+                    .anyRequest()
+                    .permitAll()
+            )
+            .httpBasic(AbstractHttpConfigurer::disable)
+            .formLogin(AbstractHttpConfigurer::disable)
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .build();
+}
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
