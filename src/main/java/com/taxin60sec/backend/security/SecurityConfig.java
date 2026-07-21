@@ -43,14 +43,33 @@ public class SecurityConfig {
                 .authenticationProvider(authenticationProvider())
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(jwtAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
-                        .requestMatchers("/api/contact/**", "/api/v1/contacts/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/webhooks/whatsapp").permitAll()
-    .requestMatchers(HttpMethod.POST, "/api/webhooks/whatsapp").permitAll()
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/**").authenticated()
-                        .anyRequest().permitAll())
+                        .authorizeHttpRequests(auth -> auth
+        .requestMatchers("/", "/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+
+        .requestMatchers(HttpMethod.POST,
+                "/api/v1/auth/register",
+                "/api/v1/auth/login",
+                "/api/v1/auth/refresh"
+        ).permitAll()
+
+        .requestMatchers("/api/contact/**", "/api/v1/contacts/**").permitAll()
+
+        .requestMatchers(HttpMethod.GET, "/api/webhooks/whatsapp").permitAll()
+        .requestMatchers(HttpMethod.POST, "/api/webhooks/whatsapp").permitAll()
+
+        // ===== PUBLIC WEBSITE =====
+        .requestMatchers(HttpMethod.GET, "/api/v1/services/**").permitAll()
+        .requestMatchers(HttpMethod.POST, "/api/v1/intake/cases").permitAll()
+        .requestMatchers(HttpMethod.POST, "/api/v1/intake/cases/*/answers").permitAll()
+
+        // ===== ADMIN =====
+        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+
+        // ===== EVERYTHING ELSE =====
+        .requestMatchers("/api/**").authenticated()
+
+        .anyRequest().permitAll()
+)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
