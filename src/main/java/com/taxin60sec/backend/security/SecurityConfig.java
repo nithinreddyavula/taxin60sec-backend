@@ -80,30 +80,28 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
                             "/api/webhooks/whatsapp"
                     ).permitAll()
 
-                    // ===== PUBLIC WEBSITE =====
-                    .requestMatchers(
-                            HttpMethod.GET,
-                            "/api/v1/services/**"
-                    ).permitAll()
-
-                    .requestMatchers(
-                            HttpMethod.POST,
-                            "/api/v1/intake/cases"
-                    ).permitAll()
-
-                    .requestMatchers(
-                            HttpMethod.POST,
-                            "/api/v1/intake/cases/*/answers"
-                    ).permitAll()
-
-                    // Admin
                     .requestMatchers("/api/v1/admin/**")
-                    .hasRole("ADMIN")
+.hasAnyRole("ADMIN","CA")
 
-                    // Everything else requires login
-                    .requestMatchers("/api/**")
-                    .authenticated()
+                    // ===== PUBLIC WEBSITE =====
+                    // ===== PUBLIC WEBSITE =====
+.requestMatchers(
+        HttpMethod.GET,
+        "/api/v1/services/**"
+).permitAll()
 
+// ===== PUBLIC INTAKE =====
+.requestMatchers(
+        "/api/v1/public/intake/**"
+).permitAll()
+
+// ===== ADMIN =====
+.requestMatchers("/api/v1/admin/**")
+.hasRole("ADMIN")
+
+// ===== PROTECTED APIs =====
+.requestMatchers("/api/**")
+.authenticated()
                     .anyRequest()
                     .permitAll()
             )
@@ -126,8 +124,8 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
         return configuration.getAuthenticationManager();
     }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+            return new BCryptPasswordEncoder();
+        }
 }

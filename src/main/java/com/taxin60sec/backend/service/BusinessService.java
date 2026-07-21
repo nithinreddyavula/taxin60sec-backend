@@ -28,8 +28,57 @@ public class BusinessService {
     private final CaseMapper caseMapper; private final ServiceOfferingMapper serviceMapper; private final DocumentMapper documentMapper; private final TimelineEventMapper timelineMapper;
     public BusinessService(CaseRepository cases, ServiceOfferingRepository services, RequiredDocumentRepository required, UploadedDocumentRepository documents, TimelineEventRepository timeline, UserRepository users, CaseMapper caseMapper, ServiceOfferingMapper serviceMapper, DocumentMapper documentMapper, TimelineEventMapper timelineMapper) { this.cases=cases; this.services=services; this.required=required; this.documents=documents; this.timeline=timeline; this.users=users; this.caseMapper=caseMapper; this.serviceMapper=serviceMapper; this.documentMapper=documentMapper; this.timelineMapper=timelineMapper; }
 
-    public CaseDto createCase(CaseRequests.Create request, User actor) { ServiceOffering offering=service(request.serviceOfferingId()); if(!offering.isActive()) bad("The selected service is inactive"); Case c=new Case(); c.setCaseNumber(nextCaseNumber()); c.setTitle(request.title()); c.setDescription(request.description()); c.setServiceOffering(offering); c.setClient(actor); c.setPriority(request.priority()==null?CasePriority.NORMAL:request.priority()); c.setRemarks(request.remarks()); c.setExpectedCompletionDate(request.expectedCompletionDate()); c.setPaymentRequired(offering.isRequiresPaymentFirst()); c.setWorkflowStage(offering.isRequiresPaymentFirst()?WorkflowStage.PAYMENT_PENDING:WorkflowStage.DOCUMENTS_PENDING); c.setStatus(CaseStatus.INTAKE); c.setLastUpdatedBy(actor); final Case persisted=cases.save(c); required.findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(offering.getId()).forEach(template->{ RequiredDocument d=new RequiredDocument(); d.setName(template.getName());d.setDocumentType(template.getDocumentType());d.setDescription(template.getDescription());d.setMandatory(template.isMandatory());d.setAcceptedFileTypes(template.getAcceptedFileTypes());d.setMaximumFileSize(template.getMaximumFileSize());d.setSampleDocumentUrl(template.getSampleDocumentUrl());d.setDisplayOrder(template.getDisplayOrder());d.setTaxCase(persisted);required.save(d);}); event(persisted,actor,"CASE_CREATED","Case created",persisted.getCaseNumber()); return caseMapper.toDto(persisted); }
-    public CaseDto updateCase(Long id, CaseRequests.Update r, User actor) { Case c=caseById(id); c.setTitle(r.title());c.setDescription(r.description()); if(r.priority()!=null)c.setPriority(r.priority());c.setRemarks(r.remarks());c.setExpectedCompletionDate(r.expectedCompletionDate());c.setLastUpdatedBy(actor);event(c,actor,"CASE_UPDATED","Case updated",null);return caseMapper.toDto(c); }
+
+@Transactional
+public Case createCaseEntity(CaseRequests.Create request, User actor) {
+    ServiceOffering offering = service(request.serviceOfferingId());
+
+    if (!offering.isActive()) {
+        bad("The selected service is inactive");
+    }
+
+    Case c = new Case();
+    c.setCaseNumber(nextCaseNumber());
+    c.setTitle(request.title());
+    c.setDescription(request.description());
+    c.setServiceOffering(offering);
+    c.setClient(actor);
+    c.setPriority(request.priority() == null ? CasePriority.NORMAL : request.priority());
+    c.setRemarks(request.remarks());
+    c.setExpectedCompletionDate(request.expectedCompletionDate());
+    c.setPaymentRequired(offering.isRequiresPaymentFirst());
+    c.setWorkflowStage(
+            offering.isRequiresPaymentFirst()
+                    ? WorkflowStage.PAYMENT_PENDING
+                    : WorkflowStage.DOCUMENTS_PENDING
+    );
+    c.setStatus(CaseStatus.INTAKE);
+    c.setLastUpdatedBy(actor);
+
+    final Case persisted = cases.save(c);
+
+    required.findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(offering.getId())
+            .forEach(template -> {
+                RequiredDocument d = new RequiredDocument();
+                d.setName(template.getName());
+                d.setDocumentType(template.getDocumentType());
+                d.setDescription(template.getDescription());
+                d.setMandatory(template.isMandatory());
+                d.setAcceptedFileTypes(template.getAcceptedFileTypes());
+                d.setMaximumFileSize(template.getMaximumFileSize());
+                d.setSampleDocumentUrl(template.getSampleDocumentUrl());
+                d.setDisplayOrder(template.getDisplayOrder());
+                d.setTaxCase(persisted);
+                required.save(d);
+            });
+
+    event(persisted, actor, "CASE_CREATED", "Case created", persisted.getCaseNumber());
+
+    return persisted;
+}
+    public CaseDto createCase(CaseRequests.Create request, User actor) {
+    return caseMapper.toDto(createCaseEntity(request, actor));
+}public CaseDto updateCase(Long id, CaseRequests.Update r, User actor) { Case c=caseById(id); c.setTitle(r.title());c.setDescription(r.description()); if(r.priority()!=null)c.setPriority(r.priority());c.setRemarks(r.remarks());c.setExpectedCompletionDate(r.expectedCompletionDate());c.setLastUpdatedBy(actor);event(c,actor,"CASE_UPDATED","Case updated",null);return caseMapper.toDto(c); }
     public CaseDto assign(Long id, Long caId, User actor) { Case c=caseById(id); User ca=user(caId); if(!hasRole(ca,"CA")) bad("Assignee must have the CA role"); c.setAssignedCa(ca);c.setAssignedAt(Instant.now());c.setLastUpdatedBy(actor); if(c.getWorkflowStage()==WorkflowStage.DOCUMENTS_VERIFIED) transition(c,WorkflowStage.CA_ASSIGNED,actor); event(c,actor,"CA_ASSIGNED","CA assigned",ca.getFullName()); return caseMapper.toDto(c); }
     public CaseDto stage(Long id, WorkflowStage target, User actor) { Case c=caseById(id); transition(c,target,actor);return caseMapper.toDto(c); }
     public CaseDto status(Long id, CaseStatus status, User actor) { Case c=caseById(id); if(status==CaseStatus.CANCELLED){ c.setStatus(status); transition(c,WorkflowStage.CANCELLED,actor); return caseMapper.toDto(c); } if(!statusAllowed(c.getWorkflowStage(),status)) bad("Status "+status+" is not valid for workflow stage "+c.getWorkflowStage()); c.setStatus(status);c.setLastUpdatedBy(actor);event(c,actor,"STATUS_CHANGED","Case status changed",status.name());return caseMapper.toDto(c); }

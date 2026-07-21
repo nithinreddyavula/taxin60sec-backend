@@ -20,6 +20,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
+import java.time.LocalDateTime;
 import lombok.Setter;
 
 import java.time.Instant;
@@ -100,6 +101,12 @@ public class Case extends BaseEntity {
 
     @Column(length = 4000)
     private String intakeSummary;
+
+    @Column(name = "public_access_token", unique = true, length = 64)
+private String publicAccessToken;
+
+@Column(name = "public_access_expiry")
+private LocalDateTime publicAccessExpiry;
 
     @Column(nullable = false)
     private boolean intakeCompleted = false;

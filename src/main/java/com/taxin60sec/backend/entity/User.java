@@ -40,10 +40,9 @@ public class User extends BaseEntity {
     @Column(length = 30)
     private String phoneNumber;
 
-    @NotBlank
     @Size(max = 120)
-    @Column(nullable = false, length = 120)
-    private String passwordHash;
+@Column(length = 120)
+private String passwordHash;
 
     @Column(nullable = false)
     private boolean active = true;
