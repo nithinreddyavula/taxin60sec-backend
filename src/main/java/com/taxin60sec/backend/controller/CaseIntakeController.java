@@ -26,12 +26,12 @@ public class CaseIntakeController {
     private final BusinessService business;
     public CaseIntakeController(CaseIntakeService intake, BusinessService business) { this.intake = intake; this.business = business; }
 
-    @PostMapping("/cases") @PreAuthorize("hasRole('CLIENT')")
+    @PostMapping("/cases")
     public ApiResponse<CaseIntakeResponse> start(@Valid @RequestBody IntakeRequests.Start request, @AuthenticationPrincipal UserPrincipal principal) {
         return ApiResponse.success("Intake ready", intake.startOrResume(request, principal.getUser()), null);
     }
 
-    @PostMapping("/cases/{caseId}/answers") @PreAuthorize("hasRole('CLIENT')")
+    @PostMapping("/cases/{caseId}/answers")
     public ApiResponse<CaseIntakeResponse> answers(@PathVariable Long caseId, @Valid @RequestBody IntakeRequests.Answers request, @AuthenticationPrincipal UserPrincipal principal) {
         CaseIntakeResponse response = intake.review(caseId);
         if (!response.taxCase().clientId().equals(principal.getId())) throw new ApiException(HttpStatus.FORBIDDEN, ApiErrorCode.FORBIDDEN, "Case does not belong to current client");
