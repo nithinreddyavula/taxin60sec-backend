@@ -14,6 +14,9 @@ import com.taxin60sec.backend.entity.enums.CasePriority;
 import com.taxin60sec.backend.repository.ClientProfileRepository;
 import com.taxin60sec.backend.repository.RoleRepository;
 import com.taxin60sec.backend.repository.ServiceOfferingRepository;
+import com.taxin60sec.backend.repository.UploadedDocumentRepository;
+import com.taxin60sec.backend.repository.RequiredDocumentRepository;
+import com.taxin60sec.backend.document.DocumentService;
 import com.taxin60sec.backend.repository.UserRepository;
 import com.taxin60sec.backend.service.BusinessService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -30,8 +33,29 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
 import com.fasterxml.jackson.core.type.TypeReference;
+import java.util.Map;
+import java.util.LinkedHashMap;
+import java.util.Optional;
+
+import org.springframework.http.HttpStatus;
+
+import jakarta.persistence.EntityNotFoundException;
+
+import org.springframework.web.multipart.MultipartFile;
+
+import com.taxin60sec.backend.dto.publicintake.PublicAnswerRequest;
+import com.taxin60sec.backend.dto.publicintake.PublicAnswerResponse;
+import com.taxin60sec.backend.dto.publicintake.NextAnswerRequest;
+import com.taxin60sec.backend.dto.publicintake.ResumeIntakeResponse;
+import com.taxin60sec.backend.dto.publicintake.RequiredDocumentResponse;
+import com.taxin60sec.backend.document.DocumentValidationResult;
+import com.taxin60sec.backend.document.DocumentUploadRequest;
+
+import com.taxin60sec.backend.exception.ApiException;
+import com.taxin60sec.backend.exception.ApiErrorCode;
+
+import com.taxin60sec.backend.entity.RequiredDocument;
 
 @Service
 @Transactional
@@ -52,6 +76,12 @@ public class PublicIntakeServiceImpl implements PublicIntakeService {
     @Value("${app.public-url}")
 private String publicUrl;
 
+private final DocumentService documentService;
+
+private final RequiredDocumentRepository requiredDocumentRepository;
+
+private final UploadedDocumentRepository uploadedDocumentRepository;
+
     public PublicIntakeServiceImpl(
             UserRepository userRepository,
             RoleRepository roleRepository,
@@ -61,7 +91,10 @@ private String publicUrl;
             BusinessService businessService,
             ObjectMapper objectMapper,
             CaseRepository caseRepository,
-            NotificationService notificationService
+            NotificationService notificationService,
+            DocumentService documentService,
+RequiredDocumentRepository requiredDocumentRepository,
+UploadedDocumentRepository uploadedDocumentRepository
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -72,6 +105,9 @@ private String publicUrl;
         this.objectMapper = objectMapper;
         this.caseRepository=caseRepository;
         this.notificationService=notificationService;
+        this.documentService = documentService;
+this.requiredDocumentRepository = requiredDocumentRepository;
+this.uploadedDocumentRepository = uploadedDocumentRepository;
     }
     @Override
 public PublicStartResponse start(PublicStartRequest request) {
@@ -79,11 +115,15 @@ public PublicStartResponse start(PublicStartRequest request) {
     User client = findOrCreateClient(request);
 
     ServiceOffering service =
-            serviceOfferingRepository.findById(request.serviceOfferingId())
-                    .orElseThrow(() ->
-                            new ApiException(HttpStatus.NOT_FOUND,
-        ApiErrorCode.NOT_FOUND,
-        "Service not found");
+        serviceOfferingRepository
+                .findById(request.serviceOfferingId())
+                .orElseThrow(() ->
+                        new ApiException(
+                                HttpStatus.NOT_FOUND,
+                                ApiErrorCode.NOT_FOUND,
+                                "Service not found"
+                        )
+                );
 
    Case taxCase = businessService.createCaseEntity(
 
@@ -526,6 +566,102 @@ public ResumeIntakeResponse resume(String token) {
             answers
 
     );
+
+}
+@Override
+public List<RequiredDocumentResponse> getRequiredDocuments(Long caseId) {
+
+    Case taxCase = caseRepository.findById(caseId)
+            .orElseThrow(() -> new EntityNotFoundException("Case not found"));
+
+    List<RequiredDocument> docs =
+            requiredDocumentRepository
+                    .findByTaxCaseIdAndDeletedFalseOrderByDisplayOrderAsc(caseId);
+
+    if (docs.isEmpty() && taxCase.getServiceOffering() != null) {
+
+        docs = requiredDocumentRepository
+                .findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(
+                        taxCase.getServiceOffering().getId()
+                );
+
+    }
+
+    return docs.stream()
+
+            .map(doc ->
+
+                    new RequiredDocumentResponse(
+
+                            doc.getId(),
+
+                            doc.getName(),
+
+                            doc.isMandatory(),
+
+                            uploadedDocumentRepository
+                                    .existsByTaxCaseIdAndRequiredDocumentIdAndDeletedFalse(
+                                            caseId,
+                                            doc.getId()
+                                    )
+
+                    )
+
+            )
+
+            .toList();
+
+}
+@Override
+public void uploadDocument(
+
+        Long caseId,
+
+        Long requiredDocumentId,
+
+        MultipartFile file
+
+) {
+
+    DocumentUploadRequest request = new DocumentUploadRequest();
+
+    request.setCaseId(caseId);
+
+    request.setRequiredDocumentId(requiredDocumentId);
+
+    request.setFile(file);
+
+    documentService.upload(request);
+
+}
+@Override
+public DocumentValidationResult validateDocuments(Long caseId) {
+
+    return documentService.validate(caseId);
+
+}
+@Override
+@Transactional
+public void submitCase(Long caseId) {
+
+    Case taxCase = caseRepository.findById(caseId)
+
+            .orElseThrow(() ->
+
+                    new EntityNotFoundException("Case not found"));
+
+    DocumentValidationResult result =
+            documentService.validate(caseId);
+
+    if (!result.valid()) {
+
+        throw new IllegalStateException(result.message());
+
+    }
+
+    taxCase.setIntakeCompleted(true);
+
+    caseRepository.save(taxCase);
 
 }
 }

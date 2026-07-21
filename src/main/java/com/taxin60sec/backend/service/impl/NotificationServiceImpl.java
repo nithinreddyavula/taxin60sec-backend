@@ -31,14 +31,6 @@ private String whatsappApi;
 public NotificationServiceImpl(RestTemplate restTemplate) {
     this.restTemplate = restTemplate;
 }
-
-    @Override
-    public void sendResumeEmail(
-            String email,
-            String name,
-            String resumeUrl
-    ) {
-
         @Override
 public void sendResumeEmail(
         String email,
@@ -79,7 +71,6 @@ public void sendResumeEmail(
     );
 
 }
-    }
 
     @Override
 public void sendResumeWhatsApp(
@@ -162,5 +153,4 @@ public void sendResumeWhatsApp(
     );
 
 }
-
-}
+        }

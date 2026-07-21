@@ -5,9 +5,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 import java.util.Optional;
 
-public interface UploadedDocumentRepository extends JpaRepository<UploadedDocument, Long> {
-    List<UploadedDocument> findByTaxCaseIdAndDeletedFalseOrderByCreatedAtDesc(Long caseId);
-    Optional<UploadedDocument> findById(Long id);
-    Optional<UploadedDocument> findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(Long caseId, String documentType);
-    Optional<UploadedDocument> findFirstBySha256HashAndDeletedFalse(String sha256Hash);
+public interface UploadedDocumentRepository
+        extends JpaRepository<UploadedDocument, Long> {
+
+    boolean existsByTaxCaseIdAndRequiredDocumentIdAndDeletedFalse(
+        Long caseId,
+        Long requiredDocumentId
+);
+
+List<UploadedDocument> findByTaxCaseIdAndDeletedFalseOrderByCreatedAtDesc(
+        Long caseId
+);
+
 }
