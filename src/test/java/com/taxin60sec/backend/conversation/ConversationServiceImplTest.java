@@ -10,6 +10,7 @@ import com.taxin60sec.backend.repository.CaseRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.taxin60sec.backend.workflow.WorkflowService;
 import com.taxin60sec.backend.document.RequiredDocumentGeneratorService;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -26,6 +27,8 @@ class ConversationServiceImplTest {
     private CaseRepository caseRepository;
     private ObjectMapper objectMapper;
     @Mock
+private WorkflowService workflowService;
+    @Mock
 private RequiredDocumentGeneratorService requiredDocumentGeneratorService;
     private ConversationServiceImpl conversationService;
 
@@ -34,9 +37,10 @@ private RequiredDocumentGeneratorService requiredDocumentGeneratorService;
         caseRepository = mock(CaseRepository.class);
         objectMapper = new ObjectMapper();
         conversationService = new ConversationServiceImpl(
-        caseRepository,
-        objectMapper,
-        requiredDocumentGeneratorService
+    caseRepository,
+    objectMapper,
+    requiredDocumentGeneratorService,
+    workflowService
 );
     }
 
@@ -116,6 +120,19 @@ private RequiredDocumentGeneratorService requiredDocumentGeneratorService;
         taxCase.setIntakeAnswers("[{\"question\":\"Question 1\",\"answer\":\"Answer 1\"}]");
 
         when(caseRepository.findById(caseId)).thenReturn(Optional.of(taxCase));
+        when(workflowService.transition(
+        eq(caseId),
+        eq(WorkflowStage.DOCUMENTS_PENDING),
+        eq("Client completed intake questionnaire"),
+        isNull()
+)).thenAnswer(invocation -> {
+
+    taxCase.setConversationState(ConversationState.COLLECTING_DOCUMENTS);
+    taxCase.setWorkflowStage(WorkflowStage.DOCUMENTS_PENDING);
+    taxCase.setStatus(CaseStatus.DOCUMENT_COLLECTION);
+
+    return taxCase;
+});
 
         // Submit answer to the second (last) question
         ConversationSession session = conversationService.submitAnswer(caseId, "Answer 2");

@@ -46,6 +46,8 @@ public class SecurityConfig {
                         .requestMatchers("/", "/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         .requestMatchers("/api/contact/**", "/api/v1/contacts/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/webhooks/whatsapp").permitAll()
+    .requestMatchers(HttpMethod.POST, "/api/webhooks/whatsapp").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())

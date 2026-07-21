@@ -7,6 +7,7 @@ import com.taxin60sec.backend.entity.enums.CaseStatus;
 import com.taxin60sec.backend.entity.enums.ConversationState;
 import com.taxin60sec.backend.entity.enums.WorkflowStage;
 import com.taxin60sec.backend.repository.CaseRepository;
+import com.taxin60sec.backend.workflow.WorkflowService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.taxin60sec.backend.document.RequiredDocumentGeneratorService;
@@ -19,18 +20,20 @@ import java.util.List;
 public class ConversationServiceImpl implements ConversationService {
 
     private final CaseRepository caseRepository;
-    private final ObjectMapper objectMapper;
-    
-    private final RequiredDocumentGeneratorService requiredDocumentGeneratorService;
+private final ObjectMapper objectMapper;
+private final WorkflowService workflowService;
+private final RequiredDocumentGeneratorService requiredDocumentGeneratorService;
 
     public ConversationServiceImpl(
         CaseRepository caseRepository,
         ObjectMapper objectMapper,
-        RequiredDocumentGeneratorService requiredDocumentGeneratorService) {
+        RequiredDocumentGeneratorService requiredDocumentGeneratorService,
+        WorkflowService workflowService) {
 
     this.caseRepository = caseRepository;
     this.objectMapper = objectMapper;
     this.requiredDocumentGeneratorService = requiredDocumentGeneratorService;
+    this.workflowService = workflowService;
 }
 
     @Override
@@ -52,11 +55,15 @@ public class ConversationServiceImpl implements ConversationService {
             }
         }
 
-        caseEntity.setConversationState(ConversationState.COLLECTING_INFORMATION);
+        
         caseEntity.setIntakeAnswers("[]");
         caseEntity.setIntakeCompleted(false);
         caseEntity.setIntakeSummary(null);
+        caseEntity.setConversationState(
+        ConversationState.COLLECTING_INFORMATION
+);
         caseRepository.save(caseEntity);
+
 
         ConversationSession session = new ConversationSession();
         session.setCaseId(caseId);
@@ -107,74 +114,102 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
-    public ConversationSession submitAnswer(Long caseId, String answer) {
-        Case caseEntity = caseRepository.findById(caseId)
-                .orElseThrow(() -> new RuntimeException("Case not found with ID: " + caseId));
+public ConversationSession submitAnswer(Long caseId, String answer) {
 
-        String intakeQuestions = "";
-        if (caseEntity.getServiceOffering() != null) {
-            intakeQuestions = caseEntity.getServiceOffering().getIntakeQuestions();
-        }
+    Case caseEntity = caseRepository.findById(caseId)
+            .orElseThrow(() ->
+                    new RuntimeException("Case not found with ID: " + caseId));
 
-        List<String> questionsList = new ArrayList<>();
-        if (intakeQuestions != null && !intakeQuestions.isBlank()) {
-            for (String line : intakeQuestions.split("\\r?\\n")) {
-                if (!line.trim().isEmpty()) {
-                    questionsList.add(line.trim());
-                }
-            }
-        }
-
-        List<QuestionAnswer> answersList = new ArrayList<>();
-        String answersJson = caseEntity.getIntakeAnswers();
-        if (answersJson != null && !answersJson.isBlank()) {
-            try {
-                answersList = objectMapper.readValue(answersJson, new TypeReference<List<QuestionAnswer>>() {});
-            } catch (Exception e) {
-                // handle error or log gracefully
-            }
-        }
-
-        int answeredCount = answersList.size();
-        if (answeredCount >= questionsList.size()) {
-            throw new RuntimeException("All questions have already been answered");
-        }
-
-        String currentQuestion = questionsList.get(answeredCount);
-        answersList.add(new QuestionAnswer(currentQuestion, answer));
-
-        try {
-            String updatedJson = objectMapper.writeValueAsString(answersList);
-            caseEntity.setIntakeAnswers(updatedJson);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to serialize answers list to JSON", e);
-        }
-
-        if (answersList.size() == questionsList.size()) {
-            caseEntity.setConversationState(ConversationState.COLLECTING_DOCUMENTS);
-            caseEntity.setIntakeCompleted(true);
-            caseEntity.setWorkflowStage(WorkflowStage.DOCUMENTS_PENDING);
-            caseEntity.setStatus(CaseStatus.DOCUMENT_COLLECTION);
-            caseEntity.setIntakeSummary(generateSummaryFromAnswers(answersList));
-            requiredDocumentGeneratorService.generateForCase(caseId);
-        }
-
-        caseRepository.save(caseEntity);
-
-        ConversationSession session = new ConversationSession();
-        session.setCaseId(caseId);
-        session.setCurrentQuestionIndex(answersList.size());
-        session.setQuestions(questionsList);
-
-        List<String> answerStrings = new ArrayList<>();
-        for (QuestionAnswer qa : answersList) {
-            answerStrings.add(qa.getAnswer());
-        }
-        session.setAnswers(answerStrings);
-        session.setCompleted(caseEntity.isIntakeCompleted());
-
-        return session;
+    String intakeQuestions = "";
+    if (caseEntity.getServiceOffering() != null) {
+        intakeQuestions = caseEntity.getServiceOffering().getIntakeQuestions();
     }
+
+    List<String> questionsList = new ArrayList<>();
+    if (intakeQuestions != null && !intakeQuestions.isBlank()) {
+        for (String line : intakeQuestions.split("\\r?\\n")) {
+            if (!line.trim().isEmpty()) {
+                questionsList.add(line.trim());
+            }
+        }
+    }
+
+    List<QuestionAnswer> answersList = new ArrayList<>();
+    String answersJson = caseEntity.getIntakeAnswers();
+
+    if (answersJson != null && !answersJson.isBlank()) {
+        try {
+            answersList = objectMapper.readValue(
+                    answersJson,
+                    new TypeReference<List<QuestionAnswer>>() {
+                    });
+        } catch (Exception e) {
+            // handle gracefully
+        }
+    }
+
+    int answeredCount = answersList.size();
+
+    if (answeredCount >= questionsList.size()) {
+        throw new RuntimeException("All questions have already been answered");
+    }
+
+    String currentQuestion = questionsList.get(answeredCount);
+
+    answersList.add(new QuestionAnswer(currentQuestion, answer));
+
+    try {
+        String updatedJson = objectMapper.writeValueAsString(answersList);
+        caseEntity.setIntakeAnswers(updatedJson);
+    } catch (Exception e) {
+        throw new RuntimeException(
+                "Failed to serialize answers list to JSON",
+                e
+        );
+    }
+
+    boolean intakeCompleted = answersList.size() == questionsList.size();
+
+    if (intakeCompleted) {
+
+        caseEntity.setIntakeCompleted(true);
+
+        caseEntity.setIntakeSummary(
+                generateSummaryFromAnswers(answersList));
+
+    }
+
+    caseRepository.save(caseEntity);
+
+    if (intakeCompleted) {
+
+        caseEntity = workflowService.transition(
+                caseId,
+                WorkflowStage.DOCUMENTS_PENDING,
+                "Client completed intake questionnaire",
+                null
+        );
+
+        requiredDocumentGeneratorService.generateForCase(caseId);
+    }
+
+    ConversationSession session = new ConversationSession();
+
+    session.setCaseId(caseId);
+    session.setCurrentQuestionIndex(answersList.size());
+    session.setQuestions(questionsList);
+
+    List<String> answerStrings = new ArrayList<>();
+
+    for (QuestionAnswer qa : answersList) {
+        answerStrings.add(qa.getAnswer());
+    }
+
+    session.setAnswers(answerStrings);
+    session.setCompleted(caseEntity.isIntakeCompleted());
+
+    return session;
+}
 
     @Override
     @Transactional(readOnly = true)

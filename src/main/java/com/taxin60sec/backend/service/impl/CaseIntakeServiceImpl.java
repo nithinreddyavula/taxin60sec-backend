@@ -7,7 +7,6 @@ import com.taxin60sec.backend.dto.business.IntakeRequests;
 import com.taxin60sec.backend.dto.domain.RequiredDocumentDto;
 import com.taxin60sec.backend.entity.Case;
 import com.taxin60sec.backend.entity.ServiceOffering;
-import com.taxin60sec.backend.entity.TimelineEvent;
 import com.taxin60sec.backend.entity.User;
 import com.taxin60sec.backend.entity.enums.CasePriority;
 import com.taxin60sec.backend.entity.enums.WorkflowStage;
@@ -17,12 +16,12 @@ import com.taxin60sec.backend.mapper.DocumentMapper;
 import com.taxin60sec.backend.mapper.TimelineEventMapper;
 import com.taxin60sec.backend.repository.CaseRepository;
 import com.taxin60sec.backend.repository.ServiceOfferingRepository;
-import com.taxin60sec.backend.repository.TimelineEventRepository;
 import com.taxin60sec.backend.service.BusinessService;
 import com.taxin60sec.backend.service.CaseIntakeService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.taxin60sec.backend.workflow.WorkflowService;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -36,17 +35,19 @@ import java.util.Map;
 public class CaseIntakeServiceImpl implements CaseIntakeService {
     private final CaseRepository cases;
     private final ServiceOfferingRepository services;
-    private final TimelineEventRepository timeline;
     private final BusinessService business;
     private final CaseMapper caseMapper;
     private final DocumentMapper documentMapper;
     private final TimelineEventMapper timelineMapper;
+    private final WorkflowService workflowService;
 
-    public CaseIntakeServiceImpl(CaseRepository cases, ServiceOfferingRepository services, TimelineEventRepository timeline,
+    public CaseIntakeServiceImpl(CaseRepository cases, ServiceOfferingRepository services,
                                  BusinessService business, CaseMapper caseMapper, DocumentMapper documentMapper,
-                                 TimelineEventMapper timelineMapper) {
-        this.cases = cases; this.services = services; this.timeline = timeline; this.business = business;
-        this.caseMapper = caseMapper; this.documentMapper = documentMapper; this.timelineMapper = timelineMapper;
+                                 TimelineEventMapper timelineMapper,WorkflowService workflowService) {
+        this.cases = cases; this.services = services;  this.business = business;
+        this.caseMapper = caseMapper; 
+        this.documentMapper = documentMapper; this.timelineMapper = timelineMapper;
+        this.workflowService = workflowService;
     }
 
     @Override
@@ -60,7 +61,13 @@ public class CaseIntakeServiceImpl implements CaseIntakeService {
                     Long caseId = business.createCase(new CaseRequests.Create(title, null, service.getId(), CasePriority.NORMAL, null, null), client).id();
                     return cases.getReferenceById(caseId);
                 });
-        event(taxCase, client, "INTAKE_RESUMED", "WhatsApp intake started", null);
+        workflowService.logEvent(
+        taxCase,
+        client,
+        "INTAKE_RESUMED",
+        "WhatsApp intake started",
+        null
+);
         return response(taxCase);
     }
 
@@ -74,11 +81,30 @@ public class CaseIntakeServiceImpl implements CaseIntakeService {
             taxCase.setIntakeCompleted(true);
             taxCase.setIntakeSummary(summary(taxCase, answers));
             if (taxCase.getWorkflowStage() == WorkflowStage.CREATED) {
-                business.stage(caseId, taxCase.isPaymentRequired() ? WorkflowStage.PAYMENT_PENDING : WorkflowStage.DOCUMENTS_PENDING, actor);
+               workflowService.transition(
+        caseId,
+        taxCase.isPaymentRequired()
+                ? WorkflowStage.PAYMENT_PENDING
+                : WorkflowStage.DOCUMENTS_PENDING,
+        "Client completed intake",
+        actor
+);
             }
-            event(taxCase, actor, "INTAKE_COMPLETED", "AI intake summary prepared for CA review", null);
+           workflowService.logEvent(
+        taxCase,
+        actor,
+        "INTAKE_COMPLETED",
+        "AI intake summary prepared for CA review",
+        null
+);
         } else {
-            event(taxCase, actor, "INTAKE_ANSWER_RECORDED", "Customer provided intake information", null);
+            workflowService.logEvent(
+        taxCase,
+        actor,
+        "INTAKE_ANSWER_RECORDED",
+        "Customer provided intake information",
+        null
+);
         }
         return response(taxCase);
     }
@@ -99,7 +125,6 @@ public class CaseIntakeServiceImpl implements CaseIntakeService {
     private ServiceOffering service(Long id) { return services.findById(id).filter(s -> !s.isDeleted() && s.isActive()).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "Active service not found")); }
     private List<String> questions(ServiceOffering service) { return service.getIntakeQuestions() == null || service.getIntakeQuestions().isBlank() ? List.of("Please describe what you need help with.") : service.getIntakeQuestions().lines().filter(q -> !q.isBlank()).toList(); }
     private String summary(Case taxCase, Map<String, String> answers) { String facts = answers.isEmpty() ? "No answers recorded." : answers.entrySet().stream().map(e -> e.getKey() + ": " + e.getValue()).reduce((a, b) -> a + "; " + b).orElse(""); return "AI-assisted intake draft for CA review. Service: " + taxCase.getServiceOffering().getDisplayName() + ". Customer: " + taxCase.getClient().getFullName() + ". Details: " + facts; }
-    private void event(Case taxCase, User actor, String type, String title, String description) { TimelineEvent event = new TimelineEvent(); event.setTaxCase(taxCase); event.setActor(actor); event.setEventType(type); event.setTitle(title); event.setDescription(description); timeline.save(event); }
     private String encode(Map<String, String> values) { return values.entrySet().stream().map(e -> token(e.getKey()) + ":" + token(e.getValue())).reduce((a, b) -> a + "\n" + b).orElse(""); }
     private Map<String, String> decode(String raw) { Map<String, String> values = new LinkedHashMap<>(); if (raw == null || raw.isBlank()) return values; for (String line : raw.split("\\r?\\n")) { String[] pair = line.split(":", 2); if (pair.length == 2) values.put(untoken(pair[0]), untoken(pair[1])); } return values; }
     private String token(String value) { return Base64.getUrlEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8)); }
