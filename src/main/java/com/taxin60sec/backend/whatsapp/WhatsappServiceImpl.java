@@ -16,6 +16,8 @@ import com.taxin60sec.backend.entity.RequiredDocument;
 
 import java.util.Map;
 
+
+
 @Service
 @RequiredArgsConstructor
 public class WhatsappServiceImpl implements WhatsappService {
@@ -102,7 +104,7 @@ public void sendTextMessage(String phoneNumber, String text) {
                 .retrieve()
                 .toBodilessEntity();
 
-                System.out.println("Sending reply to: " + phoneNumber);
+                
 
         System.out.println("Message sent successfully.");
 

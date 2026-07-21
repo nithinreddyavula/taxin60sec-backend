@@ -2,7 +2,8 @@ package com.taxin60sec.backend.controller;
 
 import com.taxin60sec.backend.dto.admin.AdminCaseSummaryResponse;
 import com.taxin60sec.backend.dto.admin.AdminDashboardResponse;
-import com.taxin60sec.backend.dto.common.ApiResponse;
+import com.taxin60sec.backend.common.ApiResponse;
+import com.taxin60sec.backend.common.ApiErrorCode;
 import com.taxin60sec.backend.service.AdminCaseService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -24,21 +25,6 @@ public class AdminDashboardController {
                 "Dashboard loaded successfully",
 
                 service.dashboard(),
-
-                null
-
-        );
-
-    }
-
-    @GetMapping("/cases")
-    public ApiResponse<List<AdminCaseSummaryResponse>> cases() {
-
-        return ApiResponse.success(
-
-                "Cases loaded successfully",
-
-                service.getAllCases(),
 
                 null
 

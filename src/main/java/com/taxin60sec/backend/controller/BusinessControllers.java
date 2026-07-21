@@ -27,7 +27,7 @@ class ClientCaseController { private final BusinessService s; ClientCaseControll
 
 @RestController
 @RequestMapping("/api/v1/admin/business-cases")
-class BusinessAdminCaseController { private final BusinessService s;AdminCaseController(BusinessService s){this.s=s;}
+class BusinessAdminCaseController { private final BusinessService s;BusinessAdminCaseController(BusinessService s){this.s=s;}
  @GetMapping public ApiResponse<PageResponse<CaseDto>> list(@RequestParam(defaultValue="0")int page,@RequestParam(defaultValue="20")int size,@RequestParam(required=false)String sort,@RequestParam(required=false)String query,@RequestParam(required=false)WorkflowStage stage,@RequestParam(required=false)CasePriority priority,@RequestParam(required=false)CaseStatus status,@RequestParam(required=false)LocalDate from,@RequestParam(required=false)LocalDate to){return BusinessApi.ok(s.listCases(null,null,query,stage,priority,status,from,to,page,size,sort));}
  @PutMapping("/{id}/assign") public ApiResponse<CaseDto> assign(@PathVariable Long id,@Valid @RequestBody CaseRequests.Assignment r,@AuthenticationPrincipal UserPrincipal p){return BusinessApi.ok(s.assign(id,r.caUserId(),p.getUser()));}
  @PutMapping("/{id}/priority") public ApiResponse<CaseDto> priority(@PathVariable Long id,@Valid @RequestBody CaseRequests.Priority r,@AuthenticationPrincipal UserPrincipal p){return BusinessApi.ok(s.priority(id,r.priority(),p.getUser()));}

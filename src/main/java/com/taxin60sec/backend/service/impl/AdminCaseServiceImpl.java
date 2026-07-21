@@ -96,29 +96,26 @@ public class AdminCaseServiceImpl implements AdminCaseService {
 
         return new AdminCaseSummaryResponse(
 
-                taxCase.getId(),
+    taxCase.getId(),
 
-                taxCase.getCaseNumber(),
+    taxCase.getClient() != null
+            ? taxCase.getClient().getFullName()
+            : "N/A",
 
-                taxCase.getClient() != null
-                        ? taxCase.getClient().getFullName()
-                        : "N/A",
+    taxCase.getServiceOffering() != null
+            ? taxCase.getServiceOffering().getDisplayName()
+            : "N/A",
 
-                taxCase.getServiceOffering() != null
-                        ? taxCase.getServiceOffering().getDisplayName()
-                        : "N/A",
+    taxCase.getStatus().name(),
 
-                taxCase.getStatus().name(),
+    taxCase.isIntakeCompleted(),
 
-                taxCase.getWorkflowStage().name(),
+    answers.size(),
 
-                answers.size(),
+    questions.size(),
 
-                questions.size(),
-
-                taxCase.getCreatedAt()
-
-        );
+    taxCase.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+);
 
     }
 
@@ -148,5 +145,14 @@ public class AdminCaseServiceImpl implements AdminCaseService {
         }
 
     }
+    @Override
+public com.taxin60sec.backend.dto.admin.AdminCaseDetailResponse getCase(Long caseId) {
+    throw new UnsupportedOperationException("Not implemented yet");
+}
+
+@Override
+public void updateStatus(Long caseId, String status) {
+    throw new UnsupportedOperationException("Not implemented yet");
+}
 
 }

@@ -53,7 +53,7 @@ import com.taxin60sec.backend.document.DocumentValidationResult;
 import com.taxin60sec.backend.document.DocumentUploadRequest;
 
 import com.taxin60sec.backend.exception.ApiException;
-import com.taxin60sec.backend.exception.ApiErrorCode;
+import com.taxin60sec.backend.common.ApiErrorCode;
 
 import com.taxin60sec.backend.entity.RequiredDocument;
 
@@ -219,7 +219,9 @@ private User createClient(PublicStartRequest request) {
     Role clientRole = roleRepository
             .findByName("ROLE_CLIENT")
             .orElseThrow(() ->
-                    new ApiException("ROLE_CLIENT not found"));
+                    new ApiException( HttpStatus.NOT_FOUND,
+        ApiErrorCode.NOT_FOUND,
+        "ROLE_CLIENT not found"));
 
     Optional<User> existingEmail =
         userRepository.findByEmail(request.email());
@@ -653,9 +655,9 @@ public void submitCase(Long caseId) {
     DocumentValidationResult result =
             documentService.validate(caseId);
 
-    if (!result.valid()) {
+    if (!result.isValid()) {
 
-        throw new IllegalStateException(result.message());
+        throw new IllegalStateException(result.getMessage());
 
     }
 

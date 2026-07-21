@@ -16,7 +16,7 @@ import com.taxin60sec.backend.dto.publicintake.PublicAnswerResponse;
 import com.taxin60sec.backend.dto.publicintake.NextAnswerRequest;
 import com.taxin60sec.backend.dto.publicintake.ResumeIntakeResponse;
 import com.taxin60sec.backend.dto.publicintake.RequiredDocumentResponse;
-import com.taxin60sec.backend.dto.publicintake.DocumentValidationResult;
+import com.taxin60sec.backend.document.DocumentValidationResult;
 
 @RestController
 @RequestMapping("/api/v1/public/intake")

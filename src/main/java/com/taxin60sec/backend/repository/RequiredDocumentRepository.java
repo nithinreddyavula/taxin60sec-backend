@@ -17,5 +17,10 @@ public interface RequiredDocumentRepository
     List<RequiredDocument> findByTaxCaseOrderByDisplayOrder(
             Case taxCase
     );
+    List<RequiredDocument> findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(Long serviceOfferingId);
+
+List<RequiredDocument> findByTaxCaseIdAndDeletedFalseOrderByDisplayOrderAsc(Long caseId);
+
+Optional<RequiredDocument> findByTaxCaseIdAndDocumentTypeIgnoreCase(Long caseId, String documentType);
 
 }

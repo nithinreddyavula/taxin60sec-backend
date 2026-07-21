@@ -16,5 +16,11 @@ public interface UploadedDocumentRepository
 List<UploadedDocument> findByTaxCaseIdAndDeletedFalseOrderByCreatedAtDesc(
         Long caseId
 );
+Optional<UploadedDocument> findFirstBySha256HashAndDeletedFalse(String sha256Hash);
+
+Optional<UploadedDocument> findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(
+        Long caseId,
+        String documentType
+);
 
 }
