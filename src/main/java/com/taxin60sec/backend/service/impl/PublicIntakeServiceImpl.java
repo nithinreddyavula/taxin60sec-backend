@@ -154,7 +154,7 @@ String resumeUrl =
         "/intake/resume/" +
         taxCase.getPublicAccessToken();
 
-notificationService.sendResumeEmail(
+/*notificationService.sendResumeEmail(
 
         client.getEmail(),
 
@@ -172,7 +172,7 @@ notificationService.sendResumeWhatsApp(
 
         resumeUrl
 
-);
+);*/
 
     List<String> questions = List.of();
 
