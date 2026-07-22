@@ -19,4 +19,6 @@ public class ApiError {
 
     private String path;
 
+    
+
 }

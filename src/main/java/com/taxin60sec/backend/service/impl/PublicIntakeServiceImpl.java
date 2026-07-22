@@ -573,46 +573,55 @@ public ResumeIntakeResponse resume(String token) {
 @Override
 public List<RequiredDocumentResponse> getRequiredDocuments(Long caseId) {
 
+    System.out.println("STEP 1");
+
     Case taxCase = caseRepository.findById(caseId)
             .orElseThrow(() -> new EntityNotFoundException("Case not found"));
+
+    System.out.println("STEP 2");
 
     List<RequiredDocument> docs =
             requiredDocumentRepository
                     .findByTaxCaseIdAndDeletedFalseOrderByDisplayOrderAsc(caseId);
 
+    System.out.println("STEP 3 docs=" + docs.size());
+
     if (docs.isEmpty() && taxCase.getServiceOffering() != null) {
+
+        System.out.println("STEP 4");
 
         docs = requiredDocumentRepository
                 .findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(
                         taxCase.getServiceOffering().getId()
                 );
 
+        System.out.println("STEP 5 docs=" + docs.size());
     }
 
+    System.out.println("STEP 6");
+
     return docs.stream()
+            .map(doc -> {
 
-            .map(doc ->
+                System.out.println("Checking upload for doc " + doc.getId());
 
-                    new RequiredDocumentResponse(
+                boolean uploaded =
+                        uploadedDocumentRepository
+                                .existsByTaxCaseIdAndRequiredDocumentIdAndDeletedFalse(
+                                        caseId,
+                                        doc.getId()
+                                );
 
-                            doc.getId(),
+                System.out.println("Uploaded = " + uploaded);
 
-                            doc.getName(),
-
-                            doc.isMandatory(),
-
-                            uploadedDocumentRepository
-                                    .existsByTaxCaseIdAndRequiredDocumentIdAndDeletedFalse(
-                                            caseId,
-                                            doc.getId()
-                                    )
-
-                    )
-
-            )
-
+                return new RequiredDocumentResponse(
+                        doc.getId(),
+                        doc.getName(),
+                        doc.isMandatory(),
+                        uploaded
+                );
+            })
             .toList();
-
 }
 @Override
 public void uploadDocument(
