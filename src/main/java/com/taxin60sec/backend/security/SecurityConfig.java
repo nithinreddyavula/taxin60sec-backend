@@ -43,7 +43,7 @@ public class SecurityConfig {
 public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     return http
             .csrf(AbstractHttpConfigurer::disable)
-            .cors(Customizer.withDefaults())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session ->
                     session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider())
@@ -138,11 +138,7 @@ public CorsConfigurationSource corsConfigurationSource() {
 
     CorsConfiguration configuration = new CorsConfiguration();
 
-    configuration.setAllowedOrigins(List.of(
-            "https://www.tax60sec.com",
-            "https://tax60sec.com",
-            "http://localhost:3000"
-    ));
+    configuration.setAllowedOriginPatterns(List.of("*"));
 
     configuration.setAllowedMethods(List.of(
             "GET",
@@ -155,7 +151,7 @@ public CorsConfigurationSource corsConfigurationSource() {
 
     configuration.setAllowedHeaders(List.of("*"));
     configuration.setExposedHeaders(List.of("*"));
-    configuration.setAllowCredentials(true);
+    configuration.setAllowCredentials(false);
 
     UrlBasedCorsConfigurationSource source =
             new UrlBasedCorsConfigurationSource();
