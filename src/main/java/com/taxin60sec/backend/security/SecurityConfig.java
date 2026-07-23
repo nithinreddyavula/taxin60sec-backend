@@ -52,7 +52,7 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
             .authorizeHttpRequests(auth -> auth
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        
+
                     // Public
                     .requestMatchers(
                             "/",
@@ -87,8 +87,6 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
                             "/api/webhooks/whatsapp"
                     ).permitAll()
 
-                    .requestMatchers("/api/v1/admin/**")
-.hasAnyRole("ADMIN","CA")
 
                     // ===== PUBLIC WEBSITE =====
                     // ===== PUBLIC WEBSITE =====
@@ -135,13 +133,14 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
         public PasswordEncoder passwordEncoder() {
             return new BCryptPasswordEncoder();
         }
-        @Bean
+       @Bean
 public CorsConfigurationSource corsConfigurationSource() {
 
     CorsConfiguration configuration = new CorsConfiguration();
 
     configuration.setAllowedOrigins(List.of(
             "https://www.tax60sec.com",
+            "https://tax60sec.com",
             "http://localhost:3000"
     ));
 
@@ -155,7 +154,7 @@ public CorsConfigurationSource corsConfigurationSource() {
     ));
 
     configuration.setAllowedHeaders(List.of("*"));
-
+    configuration.setExposedHeaders(List.of("*"));
     configuration.setAllowCredentials(true);
 
     UrlBasedCorsConfigurationSource source =
