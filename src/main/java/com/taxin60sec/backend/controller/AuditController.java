@@ -1,0 +1,3 @@
+package com.taxin60sec.backend.controller;
+import com.taxin60sec.backend.entity.AuditLog; import com.taxin60sec.backend.repository.AuditLogRepository; import lombok.RequiredArgsConstructor; import org.springframework.web.bind.annotation.*; import java.util.List;
+@RestController @RequestMapping("/api/v1/audit") @RequiredArgsConstructor public class AuditController {private final AuditLogRepository logs;@GetMapping("/{entityType}/{entityId}") public List<AuditLog> history(@PathVariable String entityType,@PathVariable String entityId){return logs.findByEntityTypeAndEntityIdOrderByCreatedAtDesc(entityType,entityId);}}
