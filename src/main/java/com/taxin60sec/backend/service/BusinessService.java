@@ -1,0 +1,229 @@
+package com.taxin60sec.backend.service;
+
+import com.taxin60sec.backend.common.ApiErrorCode;
+import com.taxin60sec.backend.common.PageResponse;
+import com.taxin60sec.backend.dto.business.CaseRequests;
+import com.taxin60sec.backend.dto.business.CatalogRequests;
+import com.taxin60sec.backend.dto.business.DocumentRequests;
+import com.taxin60sec.backend.dto.domain.*;
+import com.taxin60sec.backend.entity.*;
+import com.taxin60sec.backend.entity.enums.*;
+import com.taxin60sec.backend.exception.ApiException;
+import com.taxin60sec.backend.mapper.*;
+import com.taxin60sec.backend.repository.*;
+import jakarta.transaction.Transactional;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.*;
+import java.util.function.Function;
+
+@Service
+@Transactional
+public class BusinessService {
+    private final CaseRepository cases; private final ServiceOfferingRepository services; private final RequiredDocumentRepository required; private final UploadedDocumentRepository documents; private final TimelineEventRepository timeline; private final UserRepository users;
+    private final CaseMapper caseMapper; private final ServiceOfferingMapper serviceMapper; private final DocumentMapper documentMapper; private final TimelineEventMapper timelineMapper;
+    private final com.taxin60sec.backend.service.impl.ComplianceObligationGeneratorService complianceObligationGeneratorService;
+    private final ComplianceObligationRepository complianceObligationRepository;
+    private final NotificationService notificationService;
+    private final com.taxin60sec.backend.repository.CAProfileRepository caProfiles;
+    private final com.taxin60sec.backend.payment.EscrowService escrowService;
+    public BusinessService(CaseRepository cases, ServiceOfferingRepository services, RequiredDocumentRepository required, UploadedDocumentRepository documents, TimelineEventRepository timeline, UserRepository users, CaseMapper caseMapper, ServiceOfferingMapper serviceMapper, DocumentMapper documentMapper, TimelineEventMapper timelineMapper, com.taxin60sec.backend.service.impl.ComplianceObligationGeneratorService complianceObligationGeneratorService, ComplianceObligationRepository complianceObligationRepository, NotificationService notificationService, com.taxin60sec.backend.repository.CAProfileRepository caProfiles, com.taxin60sec.backend.payment.EscrowService escrowService) { this.cases=cases; this.services=services; this.required=required; this.documents=documents; this.timeline=timeline; this.users=users; this.caseMapper=caseMapper; this.serviceMapper=serviceMapper; this.documentMapper=documentMapper; this.timelineMapper=timelineMapper; this.complianceObligationGeneratorService=complianceObligationGeneratorService; this.complianceObligationRepository=complianceObligationRepository; this.notificationService=notificationService; this.caProfiles=caProfiles; this.escrowService=escrowService; }
+
+
+@Transactional
+public Case createCaseEntity(CaseRequests.Create request, User actor) {
+    ServiceOffering offering = service(request.serviceOfferingId());
+
+    if (!offering.isActive()) {
+        bad("The selected service is inactive");
+    }
+
+    Case c = new Case();
+    c.setCaseNumber(nextCaseNumber());
+    c.setTitle(request.title());
+    c.setDescription(request.description());
+    c.setServiceOffering(offering);
+    c.setClient(actor);
+    c.setPriority(request.priority() == null ? CasePriority.NORMAL : request.priority());
+    c.setRemarks(request.remarks());
+    c.setExpectedCompletionDate(request.expectedCompletionDate());
+    c.setPaymentRequired(offering.isRequiresPaymentFirst());
+    c.setWorkflowStage(
+            offering.isRequiresPaymentFirst()
+                    ? WorkflowStage.PAYMENT_PENDING
+                    : WorkflowStage.DOCUMENTS_PENDING
+    );
+    c.setStatus(CaseStatus.INTAKE);
+    c.setLastUpdatedBy(actor);
+
+    final Case persisted = cases.save(c);
+
+    required.findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(offering.getId())
+            .forEach(template -> {
+                RequiredDocument d = new RequiredDocument();
+                d.setName(template.getName());
+                d.setDocumentType(template.getDocumentType());
+                d.setDescription(template.getDescription());
+                d.setMandatory(template.isMandatory());
+                d.setAcceptedFileTypes(template.getAcceptedFileTypes());
+                d.setMaximumFileSize(template.getMaximumFileSize());
+                d.setSampleDocumentUrl(template.getSampleDocumentUrl());
+                d.setDisplayOrder(template.getDisplayOrder());
+                d.setTaxCase(persisted);
+                required.save(d);
+            });
+
+    event(persisted, actor, "CASE_CREATED", "Case created", persisted.getCaseNumber());
+
+    complianceObligationGeneratorService.generateForCase(persisted);
+
+    return persisted;
+}
+    public CaseDto createCase(CaseRequests.Create request, User actor) {
+    return caseMapper.toDto(createCaseEntity(request, actor));
+}public CaseDto updateCase(Long id, CaseRequests.Update r, User actor) { Case c=caseById(id); c.setTitle(r.title());c.setDescription(r.description()); if(r.priority()!=null)c.setPriority(r.priority());c.setRemarks(r.remarks());c.setExpectedCompletionDate(r.expectedCompletionDate());c.setLastUpdatedBy(actor);event(c,actor,"CASE_UPDATED","Case updated",null);return caseMapper.toDto(c); }
+    public CaseDto assign(Long id, Long caId, User actor) { Case c=caseById(id); User ca=user(caId); if(!hasRole(ca,"CA")) bad("Assignee must have the CA role"); boolean verified = caProfiles.findByUserId(ca.getId()).map(com.taxin60sec.backend.entity.CAProfile::isVerified).orElse(false); if(!verified) bad("This CA has not completed KYC verification yet"); c.setAssignedCa(ca);c.setAssignedAt(Instant.now());c.setLastUpdatedBy(actor); if(c.getFirstResponseAt()==null) c.setFirstResponseAt(Instant.now()); if(c.getWorkflowStage()==WorkflowStage.DOCUMENTS_VERIFIED) transition(c,WorkflowStage.CA_ASSIGNED,actor); event(c,actor,"CA_ASSIGNED","CA assigned",ca.getFullName()); notifyCaAssignment(c,ca); return caseMapper.toDto(c); }
+    public CaseDto stage(Long id, WorkflowStage target, User actor) { Case c=caseById(id); transition(c,target,actor);return caseMapper.toDto(c); }
+    public CaseDto status(Long id, CaseStatus status, User actor) { Case c=caseById(id); if(status==CaseStatus.CANCELLED){ c.setStatus(status); transition(c,WorkflowStage.CANCELLED,actor); return caseMapper.toDto(c); } if(!statusAllowed(c.getWorkflowStage(),status)) bad("Status "+status+" is not valid for workflow stage "+c.getWorkflowStage()); c.setStatus(status);c.setLastUpdatedBy(actor);event(c,actor,"STATUS_CHANGED","Case status changed",status.name());return caseMapper.toDto(c); }
+    public CaseDto priority(Long id, CasePriority p, User actor) { Case c=caseById(id);c.setPriority(p);c.setLastUpdatedBy(actor);event(c,actor,"PRIORITY_CHANGED","Case priority changed",p.name());return caseMapper.toDto(c); }
+    public CaseDto archive(Long id, boolean restore, User actor) { Case c=caseById(id);if(restore){c.setArchived(false); if(c.getWorkflowStage()==WorkflowStage.ARCHIVED)c.setWorkflowStage(WorkflowStage.CREATED);event(c,actor,"CASE_RESTORED","Case restored",null);}else{c.setArchived(true);transition(c,WorkflowStage.ARCHIVED,actor);}return caseMapper.toDto(c); }
+    public CaseDto notes(Long id, String notes, User actor) { Case c=caseById(id);c.setInternalNotes(notes);c.setLastUpdatedBy(actor);event(c,actor,"INTERNAL_NOTE","Internal notes updated",null);return caseMapper.toDto(c); }
+    public CaseDto accept(Long id, User actor) { Case c=caseById(id);ensureAssigned(c,actor);return stage(id,WorkflowStage.UNDER_REVIEW,actor); }
+    public CaseDto reject(Long id, String reason, User actor) { Case c=caseById(id);ensureAssigned(c,actor);c.setRemarks(reason);return stage(id,WorkflowStage.CLIENT_ACTION_REQUIRED,actor); }
+    public CaseDto complete(Long id, User actor) { Case c=caseById(id);ensureAssigned(c,actor);transition(c,WorkflowStage.COMPLETED,actor);c.setStatus(CaseStatus.COMPLETED);c.setCompletedAt(Instant.now());completeLinkedObligations(c);event(c,actor,"CASE_COMPLETED","Case completed",null);return caseMapper.toDto(c); }
+    public PageResponse<CaseDto> listCases(Long clientId, Long caId, Boolean unassigned, String query, WorkflowStage stage, CasePriority priority, CaseStatus status, LocalDate from, LocalDate to, int page,int size,String sort) { Specification<Case> s=(r,q,b)->b.isFalse(r.get("deleted")); if(clientId!=null)s=s.and((r,q,b)->b.equal(r.get("client").get("id"),clientId));if(caId!=null)s=s.and((r,q,b)->b.equal(r.get("assignedCa").get("id"),caId));if(Boolean.TRUE.equals(unassigned))s=s.and((r,q,b)->b.isNull(r.get("assignedCa")));if(stage!=null)s=s.and((r,q,b)->b.equal(r.get("workflowStage"),stage));if(priority!=null)s=s.and((r,q,b)->b.equal(r.get("priority"),priority));if(status!=null)s=s.and((r,q,b)->b.equal(r.get("status"),status));if(from!=null)s=s.and((r,q,b)->b.greaterThanOrEqualTo(r.get("createdAt"),from.atStartOfDay(java.time.ZoneOffset.UTC).toInstant()));if(to!=null)s=s.and((r,q,b)->b.lessThan(r.get("createdAt"),to.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant()));if(query!=null&&!query.isBlank()){String v="%"+query.toLowerCase()+"%";s=s.and((r,q,b)->b.or(b.like(b.lower(r.get("caseNumber")),v),b.like(b.lower(r.get("title")),v),b.like(b.lower(r.get("client").get("email")),v),b.like(b.lower(r.get("client").get("phoneNumber")),v),b.like(b.lower(r.get("assignedCa").get("email")),v),b.like(b.lower(r.get("serviceOffering").get("displayName")),v)));} return page(cases.findAll(s,pageable(page,size,sort)),c->caseMapper.toDto(c,caId!=null,clientId!=null)); }
+    public ServiceOfferingDto saveService(Long id,CatalogRequests.Service r,User actor){ServiceOffering s=id==null?new ServiceOffering():service(id);s.setCode(r.code());s.setDisplayName(r.displayName());s.setDescription(r.description());s.setCategory(r.category());s.setEstimatedCompletionDays(r.estimatedCompletionDays());s.setBasePrice(r.basePrice());s.setMinimumPrice(r.minimumPrice());s.setMaximumPrice(r.maximumPrice());s.setDisplayOrder(r.displayOrder()==null?0:r.displayOrder());s.setIcon(r.icon());s.setColor(r.color());s.setRequiresPaymentFirst(Boolean.TRUE.equals(r.requiresPaymentFirst()));s.setRequiresDocumentVerification(!Boolean.FALSE.equals(r.requiresDocumentVerification()));s.setIntakeQuestions(r.intakeQuestions()==null?null:String.join("\n",r.intakeQuestions()));s.setComplexity(r.complexity());s.setIncludedFeatures(r.includedFeatures()==null?null:String.join("\n",r.includedFeatures()));if(id==null)s.setCreatedBy(actor);s.setUpdatedBy(actor);return serviceMapper.toDto(services.save(s));}
+    public ServiceOfferingDto setServiceFlag(Long id,String flag,boolean value){ServiceOffering s=service(id);if("active".equals(flag))s.setActive(value);else s.setFeatured(value);return serviceMapper.toDto(s);}
+    public void deleteService(Long id){ServiceOffering s=service(id);s.markDeleted();s.setActive(false);}
+    public PageResponse<ServiceOfferingDto> listServices(String query,ServiceCategory category,Boolean active,int page,int size,String sort){Specification<ServiceOffering>s=(r,q,b)->b.isFalse(r.get("deleted"));if(category!=null)s=s.and((r,q,b)->b.equal(r.get("category"),category));if(active!=null)s=s.and((r,q,b)->b.equal(r.get("active"),active));if(query!=null&&!query.isBlank()){String v="%"+query.toLowerCase()+"%";s=s.and((r,q,b)->b.or(b.like(b.lower(r.get("code")),v),b.like(b.lower(r.get("displayName")),v)));}return page(services.findAll(s,pageable(page,size,sort)),serviceMapper::toDto);}
+    public RequiredDocumentDto saveRequired(Long serviceId,Long id,CatalogRequests.RequiredDocument r){RequiredDocument d=id==null?new RequiredDocument():requiredDoc(id);if(serviceId!=null)d.setServiceOffering(service(serviceId));d.setName(r.name());d.setDocumentType(r.documentType());d.setDescription(r.description());d.setMandatory(!Boolean.FALSE.equals(r.mandatory()));d.setAcceptedFileTypes(r.acceptedFileTypes());d.setMaximumFileSize(r.maximumFileSize());d.setSampleDocumentUrl(r.sampleDocumentUrl());d.setDisplayOrder(r.displayOrder()==null?0:r.displayOrder());return documentMapper.toDto(required.save(d));}
+    public void deleteRequired(Long id){requiredDoc(id).markDeleted();}
+    public List<RequiredDocumentDto> requiredForService(Long serviceId){return required.findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(serviceId).stream().map(documentMapper::toDto).toList();}
+    public void reorder(Long serviceId,List<Long> ids){List<RequiredDocument>d=required.findByServiceOfferingIdAndDeletedFalseOrderByDisplayOrderAsc(serviceId);if(d.size()!=ids.size()||!new HashSet<>(ids).equals(d.stream().map(RequiredDocument::getId).collect(java.util.stream.Collectors.toSet())))bad("Reorder list must contain every document for this service exactly once");for(int i=0;i<ids.size();i++)requiredDoc(ids.get(i)).setDisplayOrder(i);}
+    public UploadedDocumentDto createDocument(Long caseId,DocumentRequests.Create r,User actor){Case c=caseById(caseId); RequiredDocument requirement=null; if(r.requiredDocumentId()!=null){requirement=requiredDoc(r.requiredDocumentId());if(!Objects.equals(requirement.getTaxCase()==null?null:requirement.getTaxCase().getId(),caseId))bad("Required document does not belong to this case");validateUpload(requirement,r);} if(r.expiresAt()!=null&&!r.expiresAt().isAfter(Instant.now()))bad("Document expiry must be in the future"); UploadedDocument d=new UploadedDocument();d.setTaxCase(c);d.setOriginalFilename(r.originalFilename());d.setDocumentType(r.documentType());d.setStorageKey(r.storageKey());d.setMimeType(r.mimeType());d.setFileSize(r.fileSize());d.setExpiresAt(r.expiresAt());d.setUploadedBy(actor);d.setRequiredDocument(requirement);d.setVersionNumber(documents.findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(caseId,r.documentType()).map(previous->previous.getVersionNumber()+1).orElse(1));documents.save(d);if(c.getWorkflowStage()==WorkflowStage.DOCUMENTS_PENDING)transition(c,WorkflowStage.DOCUMENTS_UPLOADED,actor);event(c,actor,"DOCUMENT_UPLOADED","Document uploaded",r.originalFilename()+" (v"+d.getVersionNumber()+")");return documentMapper.toDto(d);}
+    public UploadedDocumentDto updateDocument(Long caseId,Long id,DocumentRequests.Update r){UploadedDocument d=document(id);ensureDocumentCase(d,caseId);d.setOriginalFilename(r.originalFilename());d.setDocumentType(r.documentType());d.setStorageKey(r.storageKey());d.setMimeType(r.mimeType());d.setFileSize(r.fileSize());return documentMapper.toDto(d);}
+    public void deleteDocument(Long caseId,Long id){UploadedDocument d=document(id);ensureDocumentCase(d,caseId);d.markDeleted();event(d.getTaxCase(),d.getUploadedBy(),"DOCUMENT_DELETED","Document deleted",d.getOriginalFilename());}
+    public UploadedDocumentDto verifyDocument(Long caseId,Long id,boolean approved,String reason,User actor){UploadedDocument d=document(id);ensureDocumentCase(d,caseId); if(d.getExpiresAt()!=null&&!d.getExpiresAt().isAfter(Instant.now()))bad("Expired documents cannot be verified");d.setVerificationStatus(approved?DocumentVerificationStatus.VERIFIED:DocumentVerificationStatus.REJECTED);d.setVerifiedAt(Instant.now());d.setVerifiedBy(actor);d.setRejectionReason(reason);Case c=d.getTaxCase();if(approved&&missing(c.getId()).isEmpty()){c.setDocumentVerificationCompleted(true);if(c.getWorkflowStage()==WorkflowStage.DOCUMENTS_UPLOADED)transition(c,WorkflowStage.DOCUMENTS_VERIFIED,actor);}event(c,actor,approved?"DOCUMENT_VERIFIED":"DOCUMENT_REJECTED",approved?"Document verified":"Document rejected",d.getOriginalFilename());return documentMapper.toDto(d);}
+    public List<UploadedDocumentDto> documents(Long caseId){return documents.findByTaxCaseIdAndDeletedFalseOrderByCreatedAtDesc(caseId).stream().map(documentMapper::toDto).toList();}
+    public List<RequiredDocumentDto> missing(Long caseId){Set<Long> satisfied=documents.findByTaxCaseIdAndDeletedFalseOrderByCreatedAtDesc(caseId).stream().filter(d->d.getVerificationStatus()==DocumentVerificationStatus.VERIFIED&&d.getRequiredDocument()!=null).map(d->d.getRequiredDocument().getId()).collect(java.util.stream.Collectors.toSet());return required.findByTaxCaseIdAndDeletedFalseOrderByDisplayOrderAsc(caseId).stream().filter(d->d.isMandatory()&&!satisfied.contains(d.getId())).map(documentMapper::toDto).toList();}
+    public List<TimelineEventDto> timeline(Long caseId){return timeline.findByTaxCaseIdAndDeletedFalseOrderByCreatedAtAsc(caseId).stream().map(timelineMapper::toDto).toList();}
+    public Map<String,Long> statistics(Long caId){Map<String,Long> out=new LinkedHashMap<>();for(WorkflowStage s:WorkflowStage.values()){final WorkflowStage stage=s;out.put(stage.name(),cases.count((r,q,b)->caId==null?b.and(b.isFalse(r.get("deleted")),b.equal(r.get("workflowStage"),stage)):b.and(b.isFalse(r.get("deleted")),b.equal(r.get("assignedCa").get("id"),caId),b.equal(r.get("workflowStage"),stage))));}out.put("TOTAL",cases.count((r,q,b)->caId==null?b.isFalse(r.get("deleted")):b.and(b.isFalse(r.get("deleted")),b.equal(r.get("assignedCa").get("id"),caId))));return out;}
+    public CaseDto getCase(Long id){return caseMapper.toDto(caseById(id));}
+    /** Used by the client's own case detail endpoint - never leaks staff-only internal notes. */
+    public CaseDto getCaseForClient(Long id){return caseMapper.toDto(caseById(id), false, true);}
+    public User actor(Long id){return user(id);} public boolean assignedTo(Long id,User u){Case c=caseById(id);return c.getAssignedCa()!=null&&Objects.equals(c.getAssignedCa().getId(),u.getId());}
+
+    private void transition(Case c,WorkflowStage target,User actor){if(c.getWorkflowStage()==target)return;Set<WorkflowStage> allowed=switch(c.getWorkflowStage()){case CREATED->Set.of(WorkflowStage.PAYMENT_PENDING,WorkflowStage.DOCUMENTS_PENDING);case PAYMENT_PENDING->Set.of(WorkflowStage.PAYMENT_COMPLETED);case PAYMENT_COMPLETED->Set.of(WorkflowStage.DOCUMENTS_PENDING);case DOCUMENTS_PENDING->Set.of(WorkflowStage.DOCUMENTS_UPLOADED,WorkflowStage.CLIENT_ACTION_REQUIRED);case DOCUMENTS_UPLOADED->Set.of(WorkflowStage.DOCUMENTS_VERIFIED,WorkflowStage.CLIENT_ACTION_REQUIRED);case DOCUMENTS_VERIFIED->Set.of(WorkflowStage.CA_ASSIGNED);case CA_ASSIGNED->Set.of(WorkflowStage.UNDER_REVIEW,WorkflowStage.CLIENT_ACTION_REQUIRED);case UNDER_REVIEW->Set.of(WorkflowStage.PROCESSING,WorkflowStage.CLIENT_ACTION_REQUIRED);case CLIENT_ACTION_REQUIRED->Set.of(WorkflowStage.DOCUMENTS_UPLOADED,WorkflowStage.UNDER_REVIEW);case PROCESSING->Set.of(WorkflowStage.READY_TO_FILE);case READY_TO_FILE->Set.of(WorkflowStage.FILED);case FILED->Set.of(WorkflowStage.COMPLETED);case COMPLETED->Set.of(WorkflowStage.ARCHIVED);default->Set.of();};if(!allowed.contains(target)&&target!=WorkflowStage.ARCHIVED&&target!=WorkflowStage.CANCELLED)bad("Invalid workflow transition from "+c.getWorkflowStage()+" to "+target);if(target==WorkflowStage.DOCUMENTS_VERIFIED&&!missing(c.getId()).isEmpty())bad("All mandatory documents must be verified first");if(target==WorkflowStage.CA_ASSIGNED&&c.getAssignedCa()==null)bad("A CA must be assigned before review");c.setWorkflowStage(target);c.setLastUpdatedBy(actor);if(target==WorkflowStage.ARCHIVED)c.setArchived(true);if(target==WorkflowStage.COMPLETED)completeLinkedObligations(c);try{escrowService.releaseForMilestone(c,target);}catch(Exception ex){/* Escrow release failure must never block the workflow transition itself - same pattern as notification failures elsewhere in this class. */}event(c,actor,"WORKFLOW_CHANGED","Workflow stage changed",target.name());}
+
+private void completeLinkedObligations(Case c){List<ComplianceObligation> linked=complianceObligationRepository.findByRelatedCaseIdAndDeletedFalse(c.getId());for(ComplianceObligation o:linked){if(o.getStatus()==ComplianceStatus.COMPLETED)continue;o.setStatus(ComplianceStatus.COMPLETED);o.setCompletedAt(Instant.now());}complianceObligationRepository.saveAll(linked);}
+
+private void notifyCaAssignment(Case c, User ca) {
+    try {
+        notificationService.sendCaAssignmentEmail(
+                ca.getEmail(),
+                ca.getFullName(),
+                c.getCaseNumber(),
+                c.getServiceOffering() != null ? c.getServiceOffering().getDisplayName() : "Service",
+                c.getClient() != null ? c.getClient().getFullName() : "Client"
+        );
+    } catch (Exception ex) {
+        // Notification failure must never block the assignment itself - same pattern as the
+        // compliance reminder job's WhatsApp calls.
+    }
+}
+    private void ensureAssigned(Case c,User actor){if(c.getAssignedCa()==null||!Objects.equals(c.getAssignedCa().getId(),actor.getId()))throw new ApiException(HttpStatus.FORBIDDEN,ApiErrorCode.FORBIDDEN,"Case is not assigned to you");}
+    private void validateUpload(RequiredDocument requirement, DocumentRequests.Create request) {
+        if (requirement.getMaximumFileSize() != null && request.fileSize() != null && request.fileSize() > requirement.getMaximumFileSize()) {
+            bad("File exceeds the maximum allowed size for " + requirement.getName());
+        }
+        if (requirement.getAcceptedFileTypes() != null && !requirement.getAcceptedFileTypes().isBlank() && request.mimeType() != null) {
+            List<String> accepted = Arrays.stream(requirement.getAcceptedFileTypes().split(","))
+                    .map(String::trim).map(String::toLowerCase).filter(s -> !s.isEmpty()).toList();
+            if (!accepted.isEmpty() && !accepted.contains(request.mimeType().toLowerCase())) {
+                bad("File type not accepted for " + requirement.getName());
+            }
+        }
+    }
+
+    private void ensureDocumentCase(UploadedDocument d, Long caseId) {
+        if (!Objects.equals(d.getTaxCase() == null ? null : d.getTaxCase().getId(), caseId)) {
+            bad("Document does not belong to this case");
+        }
+    }
+
+    private Case caseById(Long id) {
+        return cases.findById(id).filter(c -> !c.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "Case not found"));
+    }
+
+    private ServiceOffering service(Long id) {
+        return services.findById(id).filter(s -> !s.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "Service not found"));
+    }
+
+    private User user(Long id) {
+        return users.findById(id)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "User not found"));
+    }
+
+    private RequiredDocument requiredDoc(Long id) {
+        return required.findById(id).filter(d -> !d.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "Required document not found"));
+    }
+
+    private UploadedDocument document(Long id) {
+        return documents.findById(id).filter(d -> !d.isDeleted())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "Document not found"));
+    }
+
+    private boolean hasRole(User u, String roleName) {
+        return u.getRoles() != null && u.getRoles().stream().anyMatch(r -> roleName.equalsIgnoreCase(r.getName()));
+    }
+
+    private boolean statusAllowed(WorkflowStage stage, CaseStatus status) {
+        return switch (status) {
+            case DRAFT, INTAKE -> stage == WorkflowStage.CREATED || stage == WorkflowStage.PAYMENT_PENDING || stage == WorkflowStage.PAYMENT_COMPLETED;
+            case DOCUMENT_COLLECTION -> stage == WorkflowStage.DOCUMENTS_PENDING || stage == WorkflowStage.DOCUMENTS_UPLOADED || stage == WorkflowStage.CLIENT_ACTION_REQUIRED;
+            case CA_REVIEW -> stage == WorkflowStage.DOCUMENTS_VERIFIED || stage == WorkflowStage.CA_ASSIGNED || stage == WorkflowStage.UNDER_REVIEW;
+            case IN_PROGRESS -> stage == WorkflowStage.PROCESSING || stage == WorkflowStage.READY_TO_FILE || stage == WorkflowStage.FILED;
+            case COMPLETED -> stage == WorkflowStage.COMPLETED || stage == WorkflowStage.ARCHIVED;
+            case CANCELLED -> true;
+        };
+    }
+
+    private Pageable pageable(int page, int size, String sort) {
+        Sort s = Sort.by(Sort.Direction.DESC, "createdAt");
+        if (sort != null && !sort.isBlank()) {
+            String[] parts = sort.split(",");
+            Sort.Direction dir = parts.length > 1 && parts[1].trim().equalsIgnoreCase("asc") ? Sort.Direction.ASC : Sort.Direction.DESC;
+            s = Sort.by(dir, parts[0].trim());
+        }
+        return PageRequest.of(Math.max(page, 0), size <= 0 ? 20 : size, s);
+    }
+
+    private <T, R> PageResponse<R> page(Page<T> p, Function<T, R> mapper) {
+        return new PageResponse<>(p.getContent().stream().map(mapper).toList(), p.getNumber(), p.getSize(), p.getTotalElements(), p.getTotalPages());
+    }
+
+    private void bad(String message) {
+        throw new ApiException(HttpStatus.BAD_REQUEST, ApiErrorCode.BAD_REQUEST, message);
+    }
+
+    private void event(Case c, User actor, String eventType, String title, String description) {
+        TimelineEvent e = new TimelineEvent();
+        e.setTaxCase(c);
+        e.setActor(actor);
+        e.setEventType(eventType);
+        e.setTitle(title);
+        e.setDescription(description);
+        timeline.save(e);
+    }
+
+    private String nextCaseNumber() {
+        return "TX" + java.time.Year.now().getValue() + "-" + String.format("%06d", cases.count() + 1);
+    }
+}

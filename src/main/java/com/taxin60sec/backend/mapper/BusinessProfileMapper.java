@@ -1,0 +1,3 @@
+package com.taxin60sec.backend.mapper;
+import com.taxin60sec.backend.dto.business.BusinessProfileResponse; import com.taxin60sec.backend.entity.BusinessProfile; import org.springframework.stereotype.Component;
+@Component public class BusinessProfileMapper { public BusinessProfileResponse toResponse(BusinessProfile b){return new BusinessProfileResponse(b.getId(),b.getClientProfile().getId(),b.getBusinessName(),b.getBusinessType(),b.getPanNumber(),b.getGstin(),b.getTanNumber(),b.getCin(),b.getMsmeNumber(),b.getIncorporationDate(),b.getBusinessStatus(),b.getAssignedCA()==null?null:b.getAssignedCA().getId(),b.getAddress(),b.getCreatedAt(),b.getUpdatedAt());} }
