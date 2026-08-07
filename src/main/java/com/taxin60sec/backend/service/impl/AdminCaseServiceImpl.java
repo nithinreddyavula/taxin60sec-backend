@@ -8,6 +8,8 @@ import com.taxin60sec.backend.dto.admin.AssignableCaResponse;
 import com.taxin60sec.backend.entity.Case;
 import com.taxin60sec.backend.entity.User;
 import com.taxin60sec.backend.entity.enums.CaseStatus;
+import com.taxin60sec.backend.entity.enums.NoticeSeverity;
+import com.taxin60sec.backend.entity.enums.NoticeType;
 import com.taxin60sec.backend.repository.CaseRepository;
 import com.taxin60sec.backend.repository.UserRepository;
 import com.taxin60sec.backend.service.AdminCaseService;
@@ -26,15 +28,18 @@ public class AdminCaseServiceImpl implements AdminCaseService {
 
     private final CaseRepository caseRepository;
     private final UserRepository userRepository;
+    private final NoticeService noticeService;
     private final ObjectMapper objectMapper;
 
     public AdminCaseServiceImpl(
             CaseRepository caseRepository,
             UserRepository userRepository,
+            NoticeService noticeService,
             ObjectMapper objectMapper
     ) {
         this.caseRepository = caseRepository;
         this.userRepository = userRepository;
+        this.noticeService = noticeService;
         this.objectMapper = objectMapper;
     }
 
@@ -142,7 +147,53 @@ public class AdminCaseServiceImpl implements AdminCaseService {
             );
         }
 
+        CaseStatus previous = taxCase.getStatus();
         taxCase.setStatus(target);
+
+        if (target != previous) {
+            notifyClientOfStatusChange(taxCase, target);
+        }
+    }
+
+    private void notifyClientOfStatusChange(Case taxCase, CaseStatus status) {
+        if (taxCase.getClient() == null) return;
+
+        String serviceName = taxCase.getServiceOffering() != null ? taxCase.getServiceOffering().getDisplayName() : "Your case";
+
+        String title;
+        String message;
+        NoticeSeverity severity = NoticeSeverity.INFO;
+
+        switch (status) {
+            case CA_REVIEW -> {
+                title = "Your case moved to CA review";
+                message = serviceName + " is now with your assigned CA for review.";
+            }
+            case IN_PROGRESS -> {
+                title = "Your case is now in progress";
+                message = serviceName + " is actively being worked on by your CA.";
+            }
+            case DOCUMENT_COLLECTION -> {
+                title = "Documents needed";
+                message = "Please upload the remaining documents for " + serviceName + ".";
+                severity = NoticeSeverity.ACTION_REQUIRED;
+            }
+            case COMPLETED -> {
+                title = "Your case is complete";
+                message = serviceName + " has been completed. Check your case for details.";
+            }
+            case CANCELLED -> {
+                title = "Your case was cancelled";
+                message = serviceName + " has been cancelled. Contact support if this is unexpected.";
+                severity = NoticeSeverity.WARNING;
+            }
+            default -> {
+                title = "Case status updated";
+                message = serviceName + " status changed to " + status.name().replace("_", " ") + ".";
+            }
+        }
+
+        noticeService.create(taxCase.getClient(), NoticeType.CASE_UPDATE, severity, title, message, taxCase);
     }
 
     @Override
@@ -177,8 +228,25 @@ public class AdminCaseServiceImpl implements AdminCaseService {
 
         taxCase.setAssignedCa(ca);
 
+        CaseStatus previousStatus = taxCase.getStatus();
         if (taxCase.getStatus() == CaseStatus.INTAKE || taxCase.getStatus() == CaseStatus.DOCUMENT_COLLECTION) {
             taxCase.setStatus(CaseStatus.CA_REVIEW);
+        }
+
+        if (taxCase.getClient() != null) {
+            String serviceName = taxCase.getServiceOffering() != null ? taxCase.getServiceOffering().getDisplayName() : "your case";
+            noticeService.create(
+                    taxCase.getClient(),
+                    NoticeType.CASE_UPDATE,
+                    NoticeSeverity.INFO,
+                    "A CA has been assigned to your case",
+                    ca.getFullName() + " is now handling " + serviceName + ". You'll be updated as your case moves forward.",
+                    taxCase
+            );
+        }
+
+        if (taxCase.getStatus() != previousStatus) {
+            notifyClientOfStatusChange(taxCase, taxCase.getStatus());
         }
     }
 
