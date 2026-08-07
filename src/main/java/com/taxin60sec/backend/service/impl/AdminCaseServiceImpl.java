@@ -13,6 +13,7 @@ import com.taxin60sec.backend.entity.enums.NoticeType;
 import com.taxin60sec.backend.repository.CaseRepository;
 import com.taxin60sec.backend.repository.UserRepository;
 import com.taxin60sec.backend.service.AdminCaseService;
+import com.taxin60sec.backend.service.NotificationService;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -30,17 +31,20 @@ public class AdminCaseServiceImpl implements AdminCaseService {
     private final UserRepository userRepository;
     private final NoticeService noticeService;
     private final ObjectMapper objectMapper;
+    private final NotificationService notificationService;
 
     public AdminCaseServiceImpl(
             CaseRepository caseRepository,
             UserRepository userRepository,
             NoticeService noticeService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            NotificationService notificationService
     ) {
         this.caseRepository = caseRepository;
         this.userRepository = userRepository;
         this.noticeService = noticeService;
         this.objectMapper = objectMapper;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -247,6 +251,47 @@ public class AdminCaseServiceImpl implements AdminCaseService {
 
         if (taxCase.getStatus() != previousStatus) {
             notifyClientOfStatusChange(taxCase, taxCase.getStatus());
+        }
+
+        notifyCaAssignment(taxCase, ca);
+    }
+
+    /** Notification failure must never block the assignment itself - same pattern used in BusinessService. */
+    private void notifyCaAssignment(Case taxCase, User ca) {
+        String serviceName = taxCase.getServiceOffering() != null ? taxCase.getServiceOffering().getDisplayName() : "Service";
+        String clientName = taxCase.getClient() != null ? taxCase.getClient().getFullName() : "Client";
+
+        if (ca.getEmail() != null && !ca.getEmail().isBlank()) {
+            try {
+                notificationService.sendCaAssignmentEmail(ca.getEmail(), ca.getFullName(), taxCase.getCaseNumber(), serviceName, clientName);
+            } catch (Exception ex) {
+                // best-effort, do not block assignment
+            }
+        }
+        if (ca.getPhoneNumber() != null && !ca.getPhoneNumber().isBlank()) {
+            try {
+                notificationService.sendCaAssignmentWhatsApp(ca.getPhoneNumber(), ca.getFullName(), taxCase.getCaseNumber());
+            } catch (Exception ex) {
+                // best-effort, do not block assignment
+            }
+        }
+
+        User client = taxCase.getClient();
+        if (client == null) return;
+
+        if (client.getEmail() != null && !client.getEmail().isBlank()) {
+            try {
+                notificationService.sendClientCaAssignedEmail(client.getEmail(), client.getFullName(), taxCase.getCaseNumber(), serviceName, ca.getFullName());
+            } catch (Exception ex) {
+                // best-effort, do not block assignment
+            }
+        }
+        if (client.getPhoneNumber() != null && !client.getPhoneNumber().isBlank()) {
+            try {
+                notificationService.sendClientCaAssignedWhatsApp(client.getPhoneNumber(), client.getFullName(), taxCase.getCaseNumber());
+            } catch (Exception ex) {
+                // best-effort, do not block assignment
+            }
         }
     }
 
