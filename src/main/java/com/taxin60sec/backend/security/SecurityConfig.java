@@ -101,6 +101,16 @@ public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Excepti
         "/api/v1/public/track"
 ).permitAll()
 
+                            // Public
+                            .requestMatchers(
+                                    "/",
+                                    "/actuator/health",
+                                    "/api/v1/ping",
+                                    "/v3/api-docs/**",
+                                    "/swagger-ui/**",
+                                    "/swagger-ui.html"
+                            ).permitAll()
+
 // ===== PUBLIC INTAKE =====
 .requestMatchers(
         "/api/v1/public/intake/**"
