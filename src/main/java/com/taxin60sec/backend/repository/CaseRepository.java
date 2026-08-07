@@ -13,12 +13,14 @@ public interface CaseRepository extends JpaRepository<Case, Long>, JpaSpecificat
     Optional<Case> findByPublicAccessToken(String token);
     long count();
 
-long countByStatus(CaseStatus status);
+    long countByStatus(CaseStatus status);
 
-List<Case> findAllByOrderByCreatedAtDesc();
+    List<Case> findAllByOrderByCreatedAtDesc();
     List<Case> findTop200ByFirstResponseAtIsNotNullAndDeletedFalseOrderByFirstResponseAtDesc();
     Optional<Case> findFirstByClientIdAndArchivedFalseAndDeletedFalseOrderByUpdatedAtDesc(Long clientId);
     Optional<Case> findFirstByClientIdAndServiceOfferingIdAndArchivedFalseAndDeletedFalseOrderByUpdatedAtDesc(Long clientId, Long serviceOfferingId);
+    /** Used by the admin client detail screen and the clients Excel export. */
+    List<Case> findByClient_IdAndDeletedFalseOrderByCreatedAtDesc(Long clientId);
 
     @org.springframework.data.jpa.repository.Query("select count(distinct c.client.id) from Case c where c.deleted = false")
     long countDistinctClients();
@@ -35,7 +37,7 @@ List<Case> findAllByOrderByCreatedAtDesc();
     /** Average days from assignment to completion across completed cases. */
     @org.springframework.data.jpa.repository.Query(value =
             "select avg(extract(epoch from (completed_at - assigned_at)) / 86400.0) " +
-            "from cases where deleted = false and completed_at is not null and assigned_at is not null",
+                    "from cases where deleted = false and completed_at is not null and assigned_at is not null",
             nativeQuery = true)
     Double averageTurnaroundDays();
 

@@ -32,4 +32,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "AND (:search IS NULL OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :search, '%')) " +
             "OR LOWER(u.email) LIKE LOWER(CONCAT('%', :search, '%')))")
     Page<User> searchByRole(@Param("role") String role, @Param("search") String search, Pageable pageable);
+
+    /** Used by the admin clients Excel export - unpaged, every client with that role. */
+    List<User> findByRoles_NameOrderByCreatedAtAsc(String roleName);
 }
