@@ -6,12 +6,20 @@ import com.taxin60sec.backend.dto.admin.AdminCaseSummaryResponse;
 import com.taxin60sec.backend.dto.admin.AssignCaseRequest;
 import com.taxin60sec.backend.dto.admin.AssignableCaResponse;
 import com.taxin60sec.backend.service.AdminCaseService;
+import com.taxin60sec.backend.service.impl.CaseExcelExportService;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
@@ -21,6 +29,7 @@ import java.util.List;
 public class AdminCaseController {
 
     private final AdminCaseService service;
+    private final CaseExcelExportService excelExportService;
 
     @GetMapping
     public ApiResponse<List<AdminCaseSummaryResponse>> all() {
@@ -52,5 +61,21 @@ public class AdminCaseController {
     public ApiResponse<Void> assign(@PathVariable Long id, @RequestBody AssignCaseRequest request) {
         service.assignCa(id, request.caId());
         return ApiResponse.success("CA assigned", null, null);
+    }
+
+    /** Streams every case as a downloadable .xlsx workbook. */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> export() {
+        byte[] workbook = excelExportService.exportCases();
+
+        String filename = "tax60-cases-" +
+                DateTimeFormatter.ofPattern("yyyy-MM-dd").format(java.time.LocalDate.now(ZoneId.systemDefault())) +
+                ".xlsx";
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+        headers.setContentDisposition(ContentDisposition.attachment().filename(filename).build());
+
+        return new ResponseEntity<>(workbook, headers, HttpStatus.OK);
     }
 }
