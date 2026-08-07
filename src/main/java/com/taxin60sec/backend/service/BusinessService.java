@@ -121,20 +121,43 @@ public Case createCaseEntity(CaseRequests.Create request, User actor) {
 
 private void completeLinkedObligations(Case c){List<ComplianceObligation> linked=complianceObligationRepository.findByRelatedCaseIdAndDeletedFalse(c.getId());for(ComplianceObligation o:linked){if(o.getStatus()==ComplianceStatus.COMPLETED)continue;o.setStatus(ComplianceStatus.COMPLETED);o.setCompletedAt(Instant.now());}complianceObligationRepository.saveAll(linked);}
 
-private void notifyCaAssignment(Case c, User ca) {
-    try {
-        notificationService.sendCaAssignmentEmail(
-                ca.getEmail(),
-                ca.getFullName(),
-                c.getCaseNumber(),
-                c.getServiceOffering() != null ? c.getServiceOffering().getDisplayName() : "Service",
-                c.getClient() != null ? c.getClient().getFullName() : "Client"
-        );
-    } catch (Exception ex) {
-        // Notification failure must never block the assignment itself - same pattern as the
-        // compliance reminder job's WhatsApp calls.
+    private void notifyCaAssignment(Case c, User ca) {
+        String serviceName = c.getServiceOffering() != null ? c.getServiceOffering().getDisplayName() : "Service";
+        String clientName = c.getClient() != null ? c.getClient().getFullName() : "Client";
+
+        if (ca.getEmail() != null && !ca.getEmail().isBlank()) {
+            try {
+                notificationService.sendCaAssignmentEmail(ca.getEmail(), ca.getFullName(), c.getCaseNumber(), serviceName, clientName);
+            } catch (Exception ex) {
+                // Notification failure must never block the assignment itself.
+            }
+        }
+        if (ca.getPhoneNumber() != null && !ca.getPhoneNumber().isBlank()) {
+            try {
+                notificationService.sendCaAssignmentWhatsApp(ca.getPhoneNumber(), ca.getFullName(), c.getCaseNumber());
+            } catch (Exception ex) {
+                // Same as above - WhatsApp is best-effort.
+            }
+        }
+
+        User client = c.getClient();
+        if (client == null) return;
+
+        if (client.getEmail() != null && !client.getEmail().isBlank()) {
+            try {
+                notificationService.sendClientCaAssignedEmail(client.getEmail(), client.getFullName(), c.getCaseNumber(), serviceName, ca.getFullName());
+            } catch (Exception ex) {
+                // Same fault-tolerance as the CA-side notification above.
+            }
+        }
+        if (client.getPhoneNumber() != null && !client.getPhoneNumber().isBlank()) {
+            try {
+                notificationService.sendClientCaAssignedWhatsApp(client.getPhoneNumber(), client.getFullName(), c.getCaseNumber());
+            } catch (Exception ex) {
+                // Same fault-tolerance as the CA-side notification above.
+            }
+        }
     }
-}
     private void ensureAssigned(Case c,User actor){if(c.getAssignedCa()==null||!Objects.equals(c.getAssignedCa().getId(),actor.getId()))throw new ApiException(HttpStatus.FORBIDDEN,ApiErrorCode.FORBIDDEN,"Case is not assigned to you");}
     private void validateUpload(RequiredDocument requirement, DocumentRequests.Create request) {
         if (requirement.getMaximumFileSize() != null && request.fileSize() != null && request.fileSize() > requirement.getMaximumFileSize()) {

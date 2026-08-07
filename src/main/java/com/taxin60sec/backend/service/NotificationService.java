@@ -94,5 +94,34 @@ public interface NotificationService {
             String senderName,
             String messagePreview
     );
+    void sendCaAssignmentEmail(
+            String caEmail,
+            String caName,
+            String caseNumber,
+            String serviceName,
+            String clientName
+    );
+
+    /** WhatsApp counterpart to sendCaAssignmentEmail - the CA gets both channels, same as every other event in this service. */
+    void sendCaAssignmentWhatsApp(
+            String caPhone,
+            String caName,
+            String caseNumber
+    );
+
+    /** The client-side gap: previously only the CA was told a case had been assigned. */
+    void sendClientCaAssignedEmail(
+            String clientEmail,
+            String clientName,
+            String caseNumber,
+            String serviceName,
+            String caName
+    );
+
+    void sendClientCaAssignedWhatsApp(
+            String clientPhone,
+            String clientName,
+            String caseNumber
+    );
 
 }

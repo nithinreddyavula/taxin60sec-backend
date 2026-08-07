@@ -232,7 +232,6 @@ public class NotificationServiceImpl implements NotificationService {
     }
     // ---------- CA assignment ----------
 
-    @Override
     public void sendCaAssignmentEmail(String caEmail, String caName, String caseNumber, String serviceName, String clientName) {
         sendEmail(
                 caEmail,
@@ -248,6 +247,34 @@ public class NotificationServiceImpl implements NotificationService {
                 <p>Log in to your Tax60 dashboard to review the details and get started.</p>
                 """.formatted(caName, caseNumber, serviceName, clientName)
         );
+    }
+
+    @Override
+    public void sendCaAssignmentWhatsApp(String caPhone, String caName, String caseNumber) {
+        sendWhatsAppTemplate(caPhone, "new_case_assigned", caName, caseNumber);
+    }
+
+    @Override
+    public void sendClientCaAssignedEmail(String clientEmail, String clientName, String caseNumber, String serviceName, String caName) {
+        sendEmail(
+                clientEmail,
+                "A Tax60 expert has been assigned to your case: " + caseNumber,
+                """
+                <h2>Hi %s</h2>
+                <p>Good news - a verified Tax60 expert has been assigned to your case and will begin work shortly.</p>
+                <ul>
+                  <li><strong>Case:</strong> %s</li>
+                  <li><strong>Service:</strong> %s</li>
+                  <li><strong>Expert:</strong> %s</li>
+                </ul>
+                <p>Log in to your Tax60 dashboard to track progress and message your expert directly.</p>
+                """.formatted(clientName, caseNumber, serviceName, caName)
+        );
+    }
+
+    @Override
+    public void sendClientCaAssignedWhatsApp(String clientPhone, String clientName, String caseNumber) {
+        sendWhatsAppTemplate(clientPhone, "client_case_ca_assigned", clientName, caseNumber);
     }
 
     // ---------- monthly deadline digest (homepage subscriber broadcast) ----------
