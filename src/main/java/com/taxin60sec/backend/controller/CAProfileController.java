@@ -4,6 +4,7 @@ import com.taxin60sec.backend.common.ApiResponse;
 import com.taxin60sec.backend.dto.business.CaApplicationRequest;
 import com.taxin60sec.backend.dto.business.PayoutDestinationRequest;
 import com.taxin60sec.backend.dto.domain.CAProfileDto;
+import com.taxin60sec.backend.dto.domain.CAPublicProfileDto;
 import com.taxin60sec.backend.dto.domain.CaDashboardResponse;
 import com.taxin60sec.backend.entity.enums.BackgroundCheckStatus;
 import com.taxin60sec.backend.entity.enums.CAAvailability;
@@ -49,6 +50,12 @@ public class CAProfileController {
     @PreAuthorize("hasAnyRole('CA','ADMIN')")
     public ApiResponse<CAProfileDto> myProfile(@AuthenticationPrincipal UserPrincipal principal, HttpServletRequest request) {
         return ApiResponse.success("CA profile", caProfileService.myProfile(principal.getId()), request.getRequestURI());
+    }
+
+    /** Public, non-sensitive credential summary - open to any authenticated role since a client needs it for their own assigned CA. */
+    @GetMapping("/{caUserId}/public-profile")
+    public ApiResponse<CAPublicProfileDto> publicProfile(@PathVariable Long caUserId, HttpServletRequest request) {
+        return ApiResponse.success("CA credentials", caProfileService.publicProfile(caUserId), request.getRequestURI());
     }
 
     @PostMapping(value = "/me/documents", consumes = "multipart/form-data")

@@ -117,4 +117,21 @@ public interface NotificationService {
             String caseNumber
     );
 
+    /** Fires whenever a case moves to a new workflow stage - the missing "push, don't
+     * make me poll" piece. Call from wherever BusinessService.stage(...) commits the
+     * new WorkflowStage, after it's saved. */
+    void sendCaseStageUpdateEmail(
+            String clientEmail,
+            String clientName,
+            String caseNumber,
+            String newStageLabel
+    );
+
+    void sendCaseStageUpdateWhatsApp(
+            String clientPhone,
+            String clientName,
+            String caseNumber,
+            String newStageLabel
+    );
+
 }

@@ -3,6 +3,7 @@ package com.taxin60sec.backend.service.impl;
 import com.taxin60sec.backend.common.ApiErrorCode;
 import com.taxin60sec.backend.dto.business.CaApplicationRequest;
 import com.taxin60sec.backend.dto.domain.CAProfileDto;
+import com.taxin60sec.backend.dto.domain.CAPublicProfileDto;
 import com.taxin60sec.backend.entity.CAProfile;
 import com.taxin60sec.backend.entity.Role;
 import com.taxin60sec.backend.entity.User;
@@ -123,6 +124,22 @@ public class CAProfileServiceImpl implements CAProfileService {
         return profiles.findByUserId(userId)
                 .map(this::toDto)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "CA profile not found"));
+    }
+
+    @Override
+    public CAPublicProfileDto publicProfile(Long caUserId) {
+        CAProfile profile = profiles.findByUserId(caUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, ApiErrorCode.NOT_FOUND, "CA profile not found"));
+
+        return new CAPublicProfileDto(
+                profile.getUser().getId(),
+                profile.getUser().getFullName(),
+                profile.getMembershipNumber(),
+                profile.getFirmName(),
+                profile.getSpecialization(),
+                profile.isVerified(),
+                profile.getTier() != null ? profile.getTier().name() : null
+        );
     }
 
     @Override

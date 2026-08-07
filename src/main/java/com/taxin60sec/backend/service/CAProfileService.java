@@ -2,6 +2,7 @@ package com.taxin60sec.backend.service;
 
 import com.taxin60sec.backend.dto.business.CaApplicationRequest;
 import com.taxin60sec.backend.dto.domain.CAProfileDto;
+import com.taxin60sec.backend.dto.domain.CAPublicProfileDto;
 import com.taxin60sec.backend.entity.enums.BackgroundCheckStatus;
 import com.taxin60sec.backend.entity.enums.CAAvailability;
 import com.taxin60sec.backend.entity.enums.CATier;
@@ -27,4 +28,7 @@ public interface CAProfileService {
 
     /** CA self-service - where their released earnings should actually be sent. */
     CAProfileDto setPayoutDestination(Long userId, com.taxin60sec.backend.dto.business.PayoutDestinationRequest request);
+
+    /** Client-facing: credentials of a specific CA (by their user id), safe to expose. */
+    CAPublicProfileDto publicProfile(Long caUserId);
 }

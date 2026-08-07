@@ -299,4 +299,24 @@ public class NotificationServiceImpl implements NotificationService {
                 """.formatted(recipientName, senderName, caseNumber, messagePreview)
         );
     }
+
+    // ---------- case stage update (push notification on workflow stage change) ----------
+
+    @Override
+    public void sendCaseStageUpdateEmail(String clientEmail, String clientName, String caseNumber, String newStageLabel) {
+        sendEmail(
+                clientEmail,
+                "Update on your case " + caseNumber,
+                """
+                <h2>Hi %s</h2>
+                <p>Your case <strong>%s</strong> just moved to: <strong>%s</strong>.</p>
+                <p>Log in to your Tax60 dashboard to see the full picture and message your expert directly.</p>
+                """.formatted(clientName, caseNumber, newStageLabel)
+        );
+    }
+
+    @Override
+    public void sendCaseStageUpdateWhatsApp(String clientPhone, String clientName, String caseNumber, String newStageLabel) {
+        sendWhatsAppTemplate(clientPhone, "case_stage_update", clientName, caseNumber, newStageLabel);
+    }
 }
