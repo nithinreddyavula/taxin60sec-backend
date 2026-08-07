@@ -19,12 +19,20 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class DocumentServiceImpl implements DocumentService {
+
+    /** Stages from which it's safe to auto-advance to DOCUMENTS_UPLOADED. A case that's
+     * already moved past this point (CA reviewing, filed, etc.) should never be pulled
+     * backwards just because validate() ran again on a re-upload. */
+    private static final Set<WorkflowStage> ADVANCEABLE_TO_DOCUMENTS_UPLOADED =
+            EnumSet.of(WorkflowStage.CREATED, WorkflowStage.CA_ASSIGNED, WorkflowStage.DOCUMENTS_PENDING);
 
     private final CaseRepository caseRepository;
     private final UploadedDocumentRepository uploadedDocumentRepository;
@@ -54,9 +62,9 @@ public class DocumentServiceImpl implements DocumentService {
         uploadedDocument.setRequiredDocument(requiredDocument);
 
         StoredFile storedFile = secureLocalStorageService.store(
-        request.getFile(),
-        taxCase.getId(),
-        requiredDocument.getDocumentType()
+                request.getFile(),
+                taxCase.getId(),
+                requiredDocument.getDocumentType()
         );
 
         uploadedDocument.setSha256Hash(storedFile.getSha256());
@@ -111,20 +119,39 @@ public class DocumentServiceImpl implements DocumentService {
 
         boolean valid = true;
 
+        // Tracks whether every document on the checklist - mandatory or not - actually
+        // has a file against it. This is the same signal the client-facing "Documents
+        // Summary" widget uses, and it's what the workflow stage should reflect. Using
+        // only the mandatory subset here was the bug: a service whose checklist is
+        // entirely optional (see PublicIntakeServiceImpl.createDefaultRequiredDocuments)
+        // would satisfy "no mandatory doc missing" trivially, before a single file was
+        // uploaded.
+        boolean allDocumentsUploaded = !requiredDocuments.isEmpty();
+
         for (RequiredDocument requiredDocument : requiredDocuments) {
+
+            boolean uploaded = uploadedDocumentRepository
+                    .findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(
+                            caseId,
+                            requiredDocument.getDocumentType())
+                    .isPresent();
+
+            if (!uploaded) {
+                allDocumentsUploaded = false;
+            }
 
             if (!requiredDocument.isMandatory()) {
                 continue;
             }
 
-            boolean uploaded = uploadedDocumentRepository
-                            .findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(
-                                    caseId,
-                                    requiredDocument.getDocumentType())
-                            .filter(document -> document.getVerificationStatus() == DocumentVerificationStatus.VERIFIED)
-                            .isPresent();
+            boolean verified = uploadedDocumentRepository
+                    .findTopByTaxCaseIdAndDocumentTypeAndDeletedFalseOrderByVersionNumberDesc(
+                            caseId,
+                            requiredDocument.getDocumentType())
+                    .filter(document -> document.getVerificationStatus() == DocumentVerificationStatus.VERIFIED)
+                    .isPresent();
 
-            if (!uploaded) {
+            if (!verified) {
 
                 valid = false;
 
@@ -136,15 +163,18 @@ public class DocumentServiceImpl implements DocumentService {
             }
         }
 
-        if (valid) {
+        if (allDocumentsUploaded && ADVANCEABLE_TO_DOCUMENTS_UPLOADED.contains(taxCase.getWorkflowStage())) {
 
-            taxCase.setDocumentVerificationCompleted(true);
+            taxCase.setDocumentVerificationCompleted(valid);
 
             taxCase.setWorkflowStage(
                     WorkflowStage.DOCUMENTS_UPLOADED
             );
 
             caseRepository.save(taxCase);
+        }
+
+        if (valid) {
 
             return new DocumentValidationResult(
                     true,
